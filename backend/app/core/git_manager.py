@@ -6,7 +6,10 @@ import asyncio
 from concurrent.futures import ThreadPoolExecutor
 import json
 from datetime import datetime
+import logging
 from app.core.config import settings
+
+logger = logging.getLogger(__name__)
 
 class GitProject:
     """Git项目封装类"""
@@ -195,10 +198,12 @@ class GitManager:
                 repo_name = url.split('/')[-1].replace('.git', '')
                 target_path = Path(settings.default_clone_path) / repo_name
             else:
-                target_path = Path(path)
+                target_path = Path(path).resolve().absolute()
             
-            if target_path.exists():
-                return {"error": "Directory already exists"}
+            logger.debug(f"Cloning to path: {target_path}, exists: {target_path.exists()}")
+            
+            if target_path.exists() and any(target_path.iterdir()):
+                return {"error": "Directory already exists and is not empty"}
             
             # 异步克隆
             loop = asyncio.get_event_loop()
