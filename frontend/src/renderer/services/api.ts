@@ -37,6 +37,22 @@ export const api = {
     return response.data
   },
 
+  // 项目管理功能
+  async deleteProject(projectPath: string) {
+    const response = await apiClient.delete(`/api/git/projects/${encodeURIComponent(projectPath)}`)
+    return response.data
+  },
+
+  async pullUpdates(projectPath: string) {
+    const response = await apiClient.post(`/api/git/projects/${encodeURIComponent(projectPath)}/pull`)
+    return response.data
+  },
+
+  async getProjectStatus(projectPath: string) {
+    const response = await apiClient.get(`/api/git/projects/${encodeURIComponent(projectPath)}/status`)
+    return response.data
+  },
+
   // AI operations
   async getAIProviders() {
     const response = await apiClient.get('/api/ai/providers')

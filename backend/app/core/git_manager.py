@@ -297,3 +297,108 @@ class GitManager:
         except Exception as e:
             logger.error(f"Failed to load repositories from database: {e}")
             return 0
+
+    async def delete_project(self, path: str) -> Dict[str, Any]:
+        """删除项目（数据库记录 + 本地文件）"""
+        try:
+            from app.core.database import SessionLocal
+            from app.services.repository_service import RepositoryService
+            
+            resolved_path = str(Path(path).resolve())
+            
+            # 检查项目是否存在
+            if resolved_path not in self.projects:
+                return {"error": "Project not found"}
+            
+            # 从管理器中移除
+            del self.projects[resolved_path]
+            
+            # 从数据库中移除
+            db = SessionLocal()
+            repo_service = RepositoryService(db)
+            repo_service.remove_repository(path)
+            db.close()
+            
+            # 删除本地文件夹（可选，添加确认机制）
+            project_path = Path(path)
+            if project_path.exists():
+                import shutil
+                shutil.rmtree(project_path)
+                logger.info(f"Deleted local project folder: {path}")
+            
+            return {
+                "success": True,
+                "message": f"Project {path} deleted successfully"
+            }
+            
+        except Exception as e:
+            logger.error(f"Failed to delete project: {e}")
+            return {"error": str(e)}
+
+    async def pull_updates(self, path: str) -> Dict[str, Any]:
+        """从远程仓库拉取最新更新"""
+        try:
+            resolved_path = str(Path(path).resolve())
+            project = self.get_project(path)
+            
+            if not project or not project.is_valid():
+                return {"error": "Project not found or invalid"}
+            
+            # 执行git pull
+            loop = asyncio.get_event_loop()
+            result = await loop.run_in_executor(
+                self.executor,
+                project.repo.remotes.origin.pull
+            )
+            
+            if result and len(result) > 0:
+                pull_info = result[0]
+                return {
+                    "success": True,
+                    "message": "Updates pulled successfully",
+                    "commits": len(pull_info.commit),
+                    "files_changed": len(pull_info.commit.diff('HEAD~1')) if pull_info.commit.parents else 0
+                }
+            else:
+                return {
+                    "success": True,
+                    "message": "Already up to date"
+                }
+                
+        except Exception as e:
+            logger.error(f"Failed to pull updates: {e}")
+            return {"error": str(e)}
+
+    def get_project_status(self, path: str) -> Dict[str, Any]:
+        """获取项目状态（是否有更新等）"""
+        try:
+            project = self.get_project(path)
+            if not project or not project.is_valid():
+                return {"error": "Project not found or invalid"}
+            
+            repo = project.repo
+            
+            # 检查是否有更新
+            origin = repo.remotes.origin
+            origin.fetch()
+            
+            local_commit = repo.head.commit
+            remote_commit = origin.refs[repo.active_branch.name].commit
+            
+            has_updates = local_commit.hexsha != remote_commit.hexsha
+            
+            # 检查工作区状态
+            is_clean = not repo.is_dirty()
+            
+            return {
+                "has_updates": has_updates,
+                "is_clean": is_clean,
+                "local_commit": str(local_commit.hexsha)[:8],
+                "remote_commit": str(remote_commit.hexsha)[:8],
+                "local_date": local_commit.committed_datetime.isoformat(),
+                "remote_date": remote_commit.committed_datetime.isoformat()
+            }
+            
+        except Exception as e:
+            logger.error(f"Failed to get project status: {e}")
+            return {"error": str(e)}

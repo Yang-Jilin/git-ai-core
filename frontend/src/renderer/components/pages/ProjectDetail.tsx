@@ -1,8 +1,8 @@
 import React, { useState } from 'react'
-import { useParams } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useParams, useNavigate } from 'react-router-dom'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'react-hot-toast'
-import { FolderIcon, CodeBracketIcon } from '@heroicons/react/24/outline'
+import { FolderIcon, CodeBracketIcon, TrashIcon, ArrowDownTrayIcon } from '@heroicons/react/24/outline'
 import { api } from '../../services/api'
 
 interface Project {
@@ -37,11 +37,25 @@ interface ProjectStructure {
   file_tree: FileTreeNode
 }
 
+interface ProjectStatus {
+  has_updates: boolean
+  is_clean: boolean
+  local_commit: string
+  remote_commit: string
+  local_date: string
+  remote_date: string
+}
+
 export const ProjectDetail: React.FC = () => {
   const { path } = useParams<{ path: string }>()
+  const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const [analysisQuery, setAnalysisQuery] = useState('')
   const [analysisResult, setAnalysisResult] = useState('')
   const [isAnalyzing, setIsAnalyzing] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [isPulling, setIsPulling] = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
   const decodedPath = decodeURIComponent(path || '')
 
@@ -55,6 +69,13 @@ export const ProjectDetail: React.FC = () => {
     queryKey: ['project-structure', decodedPath],
     queryFn: () => api.getProjectStructure(decodedPath),
     enabled: !!decodedPath
+  })
+
+  const { data: status, refetch: refetchStatus } = useQuery<ProjectStatus>({
+    queryKey: ['project-status', decodedPath],
+    queryFn: () => api.getProjectStatus(decodedPath),
+    enabled: !!decodedPath,
+    refetchInterval: 30000
   })
 
   const handleAnalyze = async () => {
@@ -89,24 +110,38 @@ export const ProjectDetail: React.FC = () => {
     }
   }
 
-  if (isLoading) {
-    return (
-      <div className="p-6">
-        <div className="flex justify-center items-center h-64">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-        </div>
-      </div>
-    )
+  const handleDeleteProject = async () => {
+    setIsDeleting(true)
+    try {
+      await api.deleteProject(decodedPath)
+      toast.success('项目删除成功')
+      
+      queryClient.removeQueries({ queryKey: ['project', decodedPath] })
+      queryClient.removeQueries({ queryKey: ['project-structure', decodedPath] })
+      queryClient.removeQueries({ queryKey: ['project-status', decodedPath] })
+      
+      navigate('/projects')
+    } catch (error) {
+      toast.error('删除项目失败')
+    } finally {
+      setIsDeleting(false)
+      setShowDeleteConfirm(false)
+    }
   }
 
-  if (!project) {
-    return (
-      <div className="p-6">
-        <div className="text-center py-12">
-          <p className="text-gray-500">项目未找到</p>
-        </div>
-      </div>
-    )
+  const handlePullUpdates = async () => {
+    setIsPulling(true)
+    try {
+      const result = await api.pullUpdates(decodedPath)
+      toast.success(result.message || '更新拉取成功')
+      
+      queryClient.invalidateQueries({ queryKey: ['project', decodedPath] })
+      queryClient.invalidateQueries({ queryKey: ['project-status', decodedPath] })
+    } catch (error) {
+      toast.error('拉取更新失败')
+    } finally {
+      setIsPulling(false)
+    }
   }
 
   const renderFileTree = (node: FileTreeNode, level = 0) => {
@@ -131,16 +166,112 @@ export const ProjectDetail: React.FC = () => {
     )
   }
 
+  if (isLoading) {
+    return (
+      <div className="p-6">
+        <div className="flex justify-center items-center h-64">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        </div>
+      </div>
+    )
+  }
+
+  if (!project) {
+    return (
+      <div className="p-6">
+        <div className="text-center py-12">
+          <p className="text-gray-500">项目未找到</p>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="p-6">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900">{project.info?.name}</h1>
-        <p className="mt-1 text-gray-600">{project.info?.path}</p>
+      <div className="mb-6 flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">{project.info?.name}</h1>
+          <p className="mt-1 text-gray-600">{project.info?.path}</p>
+        </div>
+        
+        <div className="flex space-x-3">
+          <button
+            onClick={handlePullUpdates}
+            disabled={isPulling}
+            className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <ArrowDownTrayIcon className="h-4 w-4 mr-2" />
+            {isPulling ? '拉取中...' : '拉取更新'}
+            {status?.has_updates && (
+              <span className="ml-2 bg-red-500 text-white text-xs px-2 py-1 rounded-full">有更新</span>
+            )}
+          </button>
+          
+          <button
+            onClick={() => setShowDeleteConfirm(true)}
+            disabled={isDeleting}
+            className="flex items-center px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <TrashIcon className="h-4 w-4 mr-2" />
+            {isDeleting ? '删除中...' : '删除项目'}
+          </button>
+        </div>
       </div>
+
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold mb-4">确认删除项目</h3>
+            <p className="text-gray-600 mb-4">
+              确定要删除 <span className="font-bold">{project.info?.name}</span> 吗？
+            </p>
+            <p className="text-sm text-gray-500 mb-6">
+              这将同时删除：
+              <br />• 数据库中的记录
+              <br />• 本地文件夹
+              <br />• 此操作不可撤销
+            </p>
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={() => setShowDeleteConfirm(false)}
+                className="px-4 py-2 text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300"
+              >
+                取消
+              </button>
+              <button
+                onClick={handleDeleteProject}
+                disabled={isDeleting}
+                className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50"
+              >
+                确认删除
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {status && (
+        <div className="mb-4 p-4 bg-blue-50 rounded-lg">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-blue-800">
+                状态: {status.has_updates ? '有可用更新' : '已是最新'}
+              </p>
+              <p className="text-xs text-blue-600 mt-1">
+                本地: {status.local_commit} • 远程: {status.remote_commit}
+              </p>
+            </div>
+            {status.has_updates && (
+              <span className="bg-red-100 text-red-800 text-xs px-2 py-1 rounded-full">
+                需要更新
+              </span>
+            )}
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
-          {/* 项目信息 */}
           <div className="bg-white rounded-lg shadow p-6">
             <h2 className="text-lg font-semibold mb-4">项目信息</h2>
             <div className="grid grid-cols-2 gap-4 text-sm">
@@ -159,7 +290,6 @@ export const ProjectDetail: React.FC = () => {
             </div>
           </div>
 
-          {/* 文件结构 */}
           <div className="bg-white rounded-lg shadow p-6">
             <h2 className="text-lg font-semibold mb-4">文件结构</h2>
             <div className="border rounded-lg p-4 max-h-96 overflow-y-auto">
@@ -167,7 +297,6 @@ export const ProjectDetail: React.FC = () => {
             </div>
           </div>
 
-          {/* AI分析 */}
           <div className="bg-white rounded-lg shadow p-6">
             <h2 className="text-lg font-semibold mb-4">AI分析</h2>
             <div className="space-y-4">
@@ -205,7 +334,6 @@ export const ProjectDetail: React.FC = () => {
         </div>
 
         <div className="space-y-6">
-          {/* 最近提交 */}
           <div className="bg-white rounded-lg shadow p-6">
             <h2 className="text-lg font-semibold mb-4">最近提交</h2>
             <div className="space-y-3">
@@ -220,7 +348,6 @@ export const ProjectDetail: React.FC = () => {
             </div>
           </div>
 
-          {/* 分支 */}
           <div className="bg-white rounded-lg shadow p-6">
             <h2 className="text-lg font-semibold mb-4">分支</h2>
             <div className="space-y-2">

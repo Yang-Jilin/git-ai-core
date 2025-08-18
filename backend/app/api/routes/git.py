@@ -155,3 +155,36 @@ async def get_diff(
         raise HTTPException(status_code=404, detail="Diff not available")
     
     return {"diff": diff}
+
+@router.delete("/projects/{project_path:path}")
+async def delete_project(project_path: str) -> Dict[str, Any]:
+    """删除项目（包括数据库记录和本地文件）"""
+    manager = GitManager().get_manager()
+    result = await manager.delete_project(project_path)
+    
+    if "error" in result:
+        raise HTTPException(status_code=404, detail=result["error"])
+    
+    return result
+
+@router.post("/projects/{project_path:path}/pull")
+async def pull_updates(project_path: str) -> Dict[str, Any]:
+    """从远程仓库拉取最新更新"""
+    manager = GitManager().get_manager()
+    result = await manager.pull_updates(project_path)
+    
+    if "error" in result:
+        raise HTTPException(status_code=400, detail=result["error"])
+    
+    return result
+
+@router.get("/projects/{project_path:path}/status")
+async def get_project_status(project_path: str) -> Dict[str, Any]:
+    """获取项目状态（是否有更新等）"""
+    manager = GitManager().get_manager()
+    status = manager.get_project_status(project_path)
+    
+    if "error" in status:
+        raise HTTPException(status_code=404, detail=status["error"])
+    
+    return status
