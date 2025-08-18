@@ -4,22 +4,38 @@ from fastapi.staticfiles import StaticFiles
 import uvicorn
 import os
 from contextlib import asynccontextmanager
+import logging
 
 from app.api.routes import git, ai, mcp, projects
 from app.core.config import settings
 from app.core.git_manager import GitManager
 from app.core.ai_manager import AIManager
 from app.core.mcp_server import McpServer
+from app.core.database import init_db
+
+logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
+    logger.info("Starting Git AI Core...")
+    
+    # 初始化数据库
+    init_db()
+    logger.info("Database initialized")
+    
+    # 初始化管理器
     app.state.git_manager = GitManager()
     app.state.ai_manager = AIManager()
     app.state.mcp_server = McpServer()
+    
+    # 从数据库加载仓库
+    loaded_count = app.state.git_manager.load_repositories_from_database()
+    logger.info(f"Loaded {loaded_count} repositories from database")
+    
     yield
     # Shutdown
-    pass
+    logger.info("Shutting down Git AI Core...")
 
 app = FastAPI(
     title="Git AI Core",

@@ -220,6 +220,22 @@ class GitManager:
             # 添加到管理器
             self.add_project(str(target_path))
             
+            # 保存到数据库
+            try:
+                from app.core.database import SessionLocal
+                from app.services.repository_service import RepositoryService
+                
+                db = SessionLocal()
+                repo_service = RepositoryService(db)
+                repo_service.add_repository(
+                    local_path=str(target_path),
+                    remote_url=repo.remotes.origin.url,
+                    name=repo_name
+                )
+                db.close()
+            except Exception as db_error:
+                logger.warning(f"Failed to save repository to database: {db_error}")
+            
             return {
                 "success": True,
                 "path": str(target_path),
@@ -251,3 +267,33 @@ class GitManager:
             "recent_commits": project.get_recent_commits(5),
             "branches": project.get_branches()
         }
+
+    def load_repositories_from_database(self) -> int:
+        """从数据库加载仓库路径"""
+        try:
+            from app.core.database import SessionLocal
+            from app.services.repository_service import RepositoryService
+            
+            db = SessionLocal()
+            repo_service = RepositoryService(db)
+            
+            # 清理无效路径
+            cleaned = repo_service.cleanup_invalid_paths()
+            if cleaned > 0:
+                logger.info(f"Cleaned up {cleaned} invalid repository paths")
+            
+            # 加载有效路径
+            repositories = repo_service.get_all_repositories()
+            loaded_count = 0
+            
+            for repo in repositories:
+                if self.add_project(repo.local_path):
+                    loaded_count += 1
+                    logger.info(f"Loaded repository from database: {repo.local_path}")
+            
+            db.close()
+            return loaded_count
+            
+        except Exception as e:
+            logger.error(f"Failed to load repositories from database: {e}")
+            return 0
