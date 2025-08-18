@@ -73,17 +73,6 @@ async def add_project(request: ProjectPath) -> Dict[str, Any]:
     else:
         raise HTTPException(status_code=400, detail="Invalid Git repository")
 
-@router.delete("/projects/{project_path:path}")
-async def remove_project(project_path: str) -> Dict[str, Any]:
-    """移除项目"""
-    manager = GitManager().get_manager()
-    success = manager.remove_project(project_path)
-    
-    if success:
-        return {"success": True, "message": "Project removed successfully"}
-    else:
-        raise HTTPException(status_code=404, detail="Project not found")
-
 @router.get("/projects/{project_path:path}/tree")
 async def get_file_tree(
     project_path: str,

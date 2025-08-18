@@ -26,6 +26,19 @@ class GitProject:
         except git.InvalidGitRepositoryError:
             self.repo = None
     
+    def close(self):
+        """关闭Git资源，释放文件句柄"""
+        if self.repo:
+            try:
+                # 关闭git命令的管道
+                if hasattr(self.repo, 'git') and hasattr(self.repo.git, 'clear_cache'):
+                    self.repo.git.clear_cache()
+                # 释放repo对象
+                self.repo = None
+                logger.debug(f"Closed Git resources for: {self.path}")
+            except Exception as e:
+                logger.warning(f"Error closing Git resources: {e}")
+    
     def is_valid(self) -> bool:
         """检查是否为有效的Git仓库"""
         return self.repo is not None
@@ -298,42 +311,131 @@ class GitManager:
             logger.error(f"Failed to load repositories from database: {e}")
             return 0
 
+    def _is_directory_locked(self, path: Path) -> tuple[bool, str]:
+        """检查目录是否被锁定，返回(是否锁定, 锁定原因)"""
+        try:
+            # 尝试创建一个临时文件来测试写入权限
+            test_file = path / ".delete_test"
+            test_file.touch()
+            test_file.unlink()
+            return False, ""
+        except PermissionError:
+            return True, "没有删除权限"
+        except Exception as e:
+            return True, f"目录访问错误: {str(e)}"
+
     async def delete_project(self, path: str) -> Dict[str, Any]:
-        """删除项目（数据库记录 + 本地文件）"""
+        """删除项目（数据库记录 + 本地文件）- 增强版"""
         try:
             from app.core.database import SessionLocal
             from app.services.repository_service import RepositoryService
+            import gc
             
+            logger.info(f"开始删除项目: {path}")
+            
+            # 规范化路径
             resolved_path = str(Path(path).resolve())
+            logger.debug(f"规范化路径: {resolved_path}")
             
             # 检查项目是否存在
             if resolved_path not in self.projects:
+                logger.warning(f"项目未找到: {resolved_path}")
                 return {"error": "Project not found"}
+            
+            # 获取项目对象并关闭资源
+            project = self.projects[resolved_path]
+            if hasattr(project, 'close'):
+                project.close()
+            logger.debug("已关闭Git资源")
             
             # 从管理器中移除
             del self.projects[resolved_path]
+            logger.debug("已从内存管理器中移除")
+            
+            # 强制垃圾回收，确保文件句柄释放
+            gc.collect()
+            logger.debug("已执行垃圾回收")
             
             # 从数据库中移除
             db = SessionLocal()
-            repo_service = RepositoryService(db)
-            repo_service.remove_repository(path)
-            db.close()
+            try:
+                repo_service = RepositoryService(db)
+                db_removed = repo_service.remove_repository(path)
+                if db_removed:
+                    logger.info("已从数据库中移除记录")
+                else:
+                    logger.warning("数据库中未找到记录")
+            finally:
+                db.close()
             
-            # 删除本地文件夹（可选，添加确认机制）
+            # 删除本地文件夹
             project_path = Path(path)
-            if project_path.exists():
-                import shutil
-                shutil.rmtree(project_path)
-                logger.info(f"Deleted local project folder: {path}")
+            if not project_path.exists():
+                logger.warning(f"本地文件夹不存在: {path}")
+                return {
+                    "success": True,
+                    "message": f"项目记录已删除，但本地文件夹不存在: {path}"
+                }
             
-            return {
-                "success": True,
-                "message": f"Project {path} deleted successfully"
-            }
+            # 检查目录是否被锁定
+            is_locked, lock_reason = self._is_directory_locked(project_path)
+            if is_locked:
+                logger.error(f"目录被锁定: {lock_reason}")
+                return {
+                    "success": False,
+                    "error": f"无法删除文件夹: {lock_reason}",
+                    "details": "请确保没有其他程序正在使用该文件夹"
+                }
+            
+            # 尝试删除文件夹
+            import shutil
+            import time
+            
+            max_retries = 3
+            for attempt in range(max_retries):
+                try:
+                    logger.info(f"尝试删除文件夹 (尝试 {attempt + 1}/{max_retries}): {project_path}")
+                    
+                    # 在Windows上，有时需要一点时间让文件句柄释放
+                    if os.name == 'nt':
+                        time.sleep(0.5)
+                    
+                    def handle_remove_readonly(func, path, exc):
+                        """处理只读文件的删除"""
+                        import stat
+                        os.chmod(path, stat.S_IWRITE)
+                        func(path)
+                    
+                    shutil.rmtree(project_path, onerror=handle_remove_readonly)
+                    logger.info(f"成功删除本地项目文件夹: {path}")
+                    
+                    return {
+                        "success": True,
+                        "message": f"项目 {path} 删除成功"
+                    }
+                    
+                except Exception as e:
+                    logger.warning(f"删除尝试 {attempt + 1} 失败: {str(e)}")
+                    if attempt == max_retries - 1:
+                        # 最后一次尝试失败
+                        logger.error(f"最终删除失败: {str(e)}")
+                        return {
+                            "success": False,
+                            "error": f"删除文件夹失败: {str(e)}",
+                            "details": "请手动删除文件夹或重启服务后重试",
+                            "manual_action_needed": True
+                        }
+                    else:
+                        # 等待后重试
+                        time.sleep(1)
             
         except Exception as e:
-            logger.error(f"Failed to delete project: {e}")
-            return {"error": str(e)}
+            logger.error(f"删除项目时发生错误: {e}", exc_info=True)
+            return {
+                "success": False,
+                "error": str(e),
+                "details": "删除过程中发生未知错误"
+            }
 
     async def pull_updates(self, path: str) -> Dict[str, Any]:
         """从远程仓库拉取最新更新"""

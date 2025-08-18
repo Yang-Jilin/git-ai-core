@@ -113,16 +113,30 @@ export const ProjectDetail: React.FC = () => {
   const handleDeleteProject = async () => {
     setIsDeleting(true)
     try {
-      await api.deleteProject(decodedPath)
-      toast.success('项目删除成功')
+      const result = await api.deleteProject(decodedPath)
       
-      queryClient.removeQueries({ queryKey: ['project', decodedPath] })
-      queryClient.removeQueries({ queryKey: ['project-structure', decodedPath] })
-      queryClient.removeQueries({ queryKey: ['project-status', decodedPath] })
-      
-      navigate('/projects')
-    } catch (error) {
-      toast.error('删除项目失败')
+      if (result.success) {
+        toast.success(result.message || '项目删除成功')
+        
+        queryClient.removeQueries({ queryKey: ['project', decodedPath] })
+        queryClient.removeQueries({ queryKey: ['project-structure', decodedPath] })
+        queryClient.removeQueries({ queryKey: ['project-status', decodedPath] })
+        
+        navigate('/projects')
+      } else {
+        // 处理删除失败的情况
+        if (result.manual_action_needed) {
+          toast.error(result.error || '删除失败，需要手动操作')
+          // 显示更详细的错误信息
+          alert(`删除失败详情：\n${result.details}\n\n请手动删除文件夹：${decodedPath}`)
+        } else {
+          toast.error(result.error || '删除项目失败')
+        }
+      }
+    } catch (error: any) {
+      console.error('删除项目错误:', error)
+      const errorMessage = error.response?.data?.detail || error.message || '删除项目失败'
+      toast.error(`删除失败: ${errorMessage}`)
     } finally {
       setIsDeleting(false)
       setShowDeleteConfirm(false)
