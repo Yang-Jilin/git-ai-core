@@ -193,12 +193,15 @@ class GitManager:
     async def clone_repository(self, url: str, path: Optional[str] = None) -> Dict[str, Any]:
         """克隆Git仓库"""
         try:
+            # 提取仓库名称
+            repo_name = url.split('/')[-1].replace('.git', '')
+            
             if path is None:
                 # 使用默认路径
-                repo_name = url.split('/')[-1].replace('.git', '')
                 target_path = Path(settings.default_clone_path) / repo_name
             else:
-                target_path = Path(path).resolve().absolute()
+                # 自定义路径下创建repo_name子目录
+                target_path = Path(path).resolve().absolute() / repo_name
             
             logger.debug(f"Cloning to path: {target_path}, exists: {target_path.exists()}")
             
