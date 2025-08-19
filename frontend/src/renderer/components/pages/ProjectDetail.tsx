@@ -53,6 +53,8 @@ export const ProjectDetail: React.FC = () => {
   const [selectedFile, setSelectedFile] = useState<string | null>(null)
   const [fileContent, setFileContent] = useState<string | null>(null)
   const [isLoadingFile, setIsLoadingFile] = useState(false)
+  // 添加展开文件夹状态
+  const [expandedFolders, setExpandedFolders] = useState<Record<string, boolean>>({})
 
   const decodedPath = decodeURIComponent(path || '')
 
@@ -143,10 +145,23 @@ export const ProjectDetail: React.FC = () => {
     }
   }
 
+  // 添加处理文件夹点击的函数
+  const handleFolderClick = (folderPath: string) => {
+    setExpandedFolders(prev => ({
+      ...prev,
+      [folderPath]: !prev[folderPath]
+    }))
+  }
+
+  // 修改renderFileTree函数
   const renderFileTree = (node: FileTreeNode, level = 0, currentPath = '') => {
     const indent = level * 20
     const fullPath = currentPath ? `${currentPath}/${node.name}` : node.name
-    
+    // 根据层级决定默认展开状态：第一级默认展开，其他层级默认不展开
+    const isExpanded = level === 0 ? 
+      expandedFolders[fullPath] !== false : // 第一级默认展开
+      expandedFolders[fullPath] === true;  // 非第一级默认不展开
+
     if (node.type === 'file') {
       return (
         <div 
@@ -158,18 +173,27 @@ export const ProjectDetail: React.FC = () => {
           <DocumentTextIcon className="h-4 w-4 text-gray-400 mr-2" />
           <span className="text-sm hover:text-blue-600">{node.name}</span>
         </div>
-      )
+      );
     }
-    
+
     return (
       <div key={fullPath}>
-        <div className="flex items-center py-1" style={{ paddingLeft: indent }}>
+        <div 
+          className="flex items-center py-1 hover:bg-gray-50 cursor-pointer" 
+          style={{ paddingLeft: indent }}
+          onClick={() => handleFolderClick(fullPath)}
+        >
           <FolderIcon className="h-4 w-4 text-blue-500 mr-2" />
           <span className="text-sm font-medium">{node.name}</span>
+          <span className="ml-2 text-xs text-gray-400">
+            {isExpanded ? '▼' : '►'}
+          </span>
         </div>
-        {node.children?.map((child) => renderFileTree(child, level + 1, fullPath))}
+        {isExpanded && node.children?.map((child) => 
+          renderFileTree(child, level + 1, fullPath)
+        )}
       </div>
-    )
+    );
   }
 
   if (isLoading) {
