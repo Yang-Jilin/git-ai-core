@@ -2,8 +2,9 @@ import React, { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'react-hot-toast'
-import { FolderIcon, CodeBracketIcon, TrashIcon, ArrowDownTrayIcon } from '@heroicons/react/24/outline'
+import { FolderIcon, DocumentTextIcon, TrashIcon } from '@heroicons/react/24/outline'
 import { api } from '../../services/api'
+import { FileViewer } from '../FileViewer'
 
 interface Project {
   info: {
@@ -23,6 +24,13 @@ interface Project {
     name: string
     is_active: boolean
   }>
+  file_tree?: {
+    type: 'file' | 'directory'
+    name: string
+    children?: any[]
+    size?: number
+    extension?: string
+  }
 }
 
 interface FileTreeNode {
@@ -33,19 +41,6 @@ interface FileTreeNode {
   extension?: string
 }
 
-interface ProjectStructure {
-  file_tree: FileTreeNode
-}
-
-interface ProjectStatus {
-  has_updates: boolean
-  is_clean: boolean
-  local_commit: string
-  remote_commit: string
-  local_date: string
-  remote_date: string
-}
-
 export const ProjectDetail: React.FC = () => {
   const { path } = useParams<{ path: string }>()
   const navigate = useNavigate()
@@ -54,8 +49,10 @@ export const ProjectDetail: React.FC = () => {
   const [analysisResult, setAnalysisResult] = useState('')
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
-  const [isPulling, setIsPulling] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [selectedFile, setSelectedFile] = useState<string | null>(null)
+  const [fileContent, setFileContent] = useState<string | null>(null)
+  const [isLoadingFile, setIsLoadingFile] = useState(false)
 
   const decodedPath = decodeURIComponent(path || '')
 
@@ -63,19 +60,6 @@ export const ProjectDetail: React.FC = () => {
     queryKey: ['project', decodedPath],
     queryFn: () => api.getProjectOverview(decodedPath),
     enabled: !!decodedPath
-  })
-
-  const { data: structure } = useQuery<ProjectStructure>({
-    queryKey: ['project-structure', decodedPath],
-    queryFn: () => api.getProjectStructure(decodedPath),
-    enabled: !!decodedPath
-  })
-
-  const { data: status, refetch: refetchStatus } = useQuery<ProjectStatus>({
-    queryKey: ['project-status', decodedPath],
-    queryFn: () => api.getProjectStatus(decodedPath),
-    enabled: !!decodedPath,
-    refetchInterval: 30000
   })
 
   const handleAnalyze = async () => {
@@ -119,15 +103,11 @@ export const ProjectDetail: React.FC = () => {
         toast.success(result.message || '项目删除成功')
         
         queryClient.removeQueries({ queryKey: ['project', decodedPath] })
-        queryClient.removeQueries({ queryKey: ['project-structure', decodedPath] })
-        queryClient.removeQueries({ queryKey: ['project-status', decodedPath] })
         
         navigate('/projects')
       } else {
-        // 处理删除失败的情况
         if (result.manual_action_needed) {
           toast.error(result.error || '删除失败，需要手动操作')
-          // 显示更详细的错误信息
           alert(`删除失败详情：\n${result.details}\n\n请手动删除文件夹：${decodedPath}`)
         } else {
           toast.error(result.error || '删除项目失败')
@@ -143,39 +123,51 @@ export const ProjectDetail: React.FC = () => {
     }
   }
 
-  const handlePullUpdates = async () => {
-    setIsPulling(true)
+  const handleFileClick = async (filePath: string) => {
+    setIsLoadingFile(true)
     try {
-      const result = await api.pullUpdates(decodedPath)
-      toast.success(result.message || '更新拉取成功')
+      // 清理文件路径：移除项目根目录前缀
+      const cleanFilePath = filePath.replace(/^[^\/]+\//, '')
       
-      queryClient.invalidateQueries({ queryKey: ['project', decodedPath] })
-      queryClient.invalidateQueries({ queryKey: ['project-status', decodedPath] })
+      console.log('原始文件路径:', filePath)
+      console.log('清理后文件路径:', cleanFilePath)
+      
+      const result = await api.getFileContent(decodedPath, cleanFilePath)
+      setFileContent(result.content)
+      setSelectedFile(cleanFilePath)
     } catch (error) {
-      toast.error('拉取更新失败')
+      console.error('文件读取错误:', error)
+      toast.error('无法读取文件内容')
     } finally {
-      setIsPulling(false)
+      setIsLoadingFile(false)
     }
   }
 
-  const renderFileTree = (node: FileTreeNode, level = 0) => {
+  const renderFileTree = (node: FileTreeNode, level = 0, currentPath = '') => {
     const indent = level * 20
+    const fullPath = currentPath ? `${currentPath}/${node.name}` : node.name
+    
     if (node.type === 'file') {
       return (
-        <div key={node.name} className="flex items-center py-1" style={{ paddingLeft: indent }}>
-          <CodeBracketIcon className="h-4 w-4 text-gray-400 mr-2" />
-          <span className="text-sm">{node.name}</span>
+        <div 
+          key={fullPath} 
+          className="flex items-center py-1 hover:bg-gray-50 cursor-pointer" 
+          style={{ paddingLeft: indent }}
+          onClick={() => handleFileClick(fullPath)}
+        >
+          <DocumentTextIcon className="h-4 w-4 text-gray-400 mr-2" />
+          <span className="text-sm hover:text-blue-600">{node.name}</span>
         </div>
       )
     }
     
     return (
-      <div key={node.name}>
+      <div key={fullPath}>
         <div className="flex items-center py-1" style={{ paddingLeft: indent }}>
           <FolderIcon className="h-4 w-4 text-blue-500 mr-2" />
           <span className="text-sm font-medium">{node.name}</span>
         </div>
-        {node.children?.map((child) => renderFileTree(child, level + 1))}
+        {node.children?.map((child) => renderFileTree(child, level + 1, fullPath))}
       </div>
     )
   }
@@ -200,6 +192,33 @@ export const ProjectDetail: React.FC = () => {
     )
   }
 
+  if (selectedFile && fileContent) {
+    return (
+      <div className="p-6">
+        <div className="mb-4">
+          <button
+            onClick={() => {
+              setSelectedFile(null)
+              setFileContent(null)
+            }}
+            className="text-blue-600 hover:text-blue-800 text-sm"
+          >
+            ← 返回文件列表
+          </button>
+        </div>
+        <FileViewer
+          fileName={selectedFile.split('/').pop() || ''}
+          fileContent={fileContent}
+          filePath={selectedFile}
+          onClose={() => {
+            setSelectedFile(null)
+            setFileContent(null)
+          }}
+        />
+      </div>
+    )
+  }
+
   return (
     <div className="p-6">
       <div className="mb-6 flex items-center justify-between">
@@ -209,18 +228,6 @@ export const ProjectDetail: React.FC = () => {
         </div>
         
         <div className="flex space-x-3">
-          <button
-            onClick={handlePullUpdates}
-            disabled={isPulling}
-            className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <ArrowDownTrayIcon className="h-4 w-4 mr-2" />
-            {isPulling ? '拉取中...' : '拉取更新'}
-            {status?.has_updates && (
-              <span className="ml-2 bg-red-500 text-white text-xs px-2 py-1 rounded-full">有更新</span>
-            )}
-          </button>
-          
           <button
             onClick={() => setShowDeleteConfirm(true)}
             disabled={isDeleting}
@@ -264,26 +271,6 @@ export const ProjectDetail: React.FC = () => {
         </div>
       )}
 
-      {status && (
-        <div className="mb-4 p-4 bg-blue-50 rounded-lg">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-blue-800">
-                状态: {status.has_updates ? '有可用更新' : '已是最新'}
-              </p>
-              <p className="text-xs text-blue-600 mt-1">
-                本地: {status.local_commit} • 远程: {status.remote_commit}
-              </p>
-            </div>
-            {status.has_updates && (
-              <span className="bg-red-100 text-red-800 text-xs px-2 py-1 rounded-full">
-                需要更新
-              </span>
-            )}
-          </div>
-        </div>
-      )}
-
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
           <div className="bg-white rounded-lg shadow p-6">
@@ -306,8 +293,13 @@ export const ProjectDetail: React.FC = () => {
 
           <div className="bg-white rounded-lg shadow p-6">
             <h2 className="text-lg font-semibold mb-4">文件结构</h2>
+            {isLoadingFile && (
+              <div className="flex justify-center items-center py-4">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+              </div>
+            )}
             <div className="border rounded-lg p-4 max-h-96 overflow-y-auto">
-              {structure?.file_tree && renderFileTree(structure.file_tree)}
+              {project?.file_tree && renderFileTree(project.file_tree)}
             </div>
           </div>
 

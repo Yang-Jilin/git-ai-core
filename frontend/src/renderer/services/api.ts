@@ -25,7 +25,7 @@ export const api = {
   },
 
   async getProjectStructure(path: string, maxDepth = 3) {
-    const response = await apiClient.get(`/api/projects/${encodeURIComponent(path)}/structure?max_depth=${maxDepth}`)
+    const response = await apiClient.get(`/api/git/projects/${encodeURIComponent(path)}/tree?max_depth=${maxDepth}`)
     return response.data
   },
 
@@ -33,6 +33,13 @@ export const api = {
     const response = await apiClient.post('/api/git/projects/file', {
       path: projectPath,
       file_path: filePath
+    })
+    return response.data
+  },
+
+  async getDirectoryContent(projectPath: string, subPath: string = '') {
+    const response = await apiClient.get(`/api/git/projects/${encodeURIComponent(projectPath)}/tree`, {
+      params: { max_depth: 10 }
     })
     return response.data
   },

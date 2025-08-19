@@ -108,9 +108,19 @@ class GitProject:
             return None
         
         try:
+            # 尝试UTF-8编码
             with open(full_path, 'r', encoding='utf-8') as f:
                 return f.read()
-        except (UnicodeDecodeError, PermissionError):
+        except UnicodeDecodeError:
+            # 尝试其他常见编码
+            for encoding in ['utf-8-sig', 'gbk', 'gb2312', 'cp1252', 'latin1']:
+                try:
+                    with open(full_path, 'r', encoding=encoding) as f:
+                        return f.read()
+                except UnicodeDecodeError:
+                    continue
+            return None
+        except (PermissionError, OSError):
             return None
     
     def get_recent_commits(self, limit: int = 10) -> List[Dict[str, Any]]:
