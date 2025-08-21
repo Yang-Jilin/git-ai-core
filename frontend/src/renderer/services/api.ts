@@ -111,5 +111,20 @@ export const api = {
   async removeMCPServer(name: string) {
     const response = await apiClient.delete(`/api/mcp/servers/${name}`)
     return response.data
+  },
+
+  // 一键触发功能
+  async generateArchitectureDocumentation(projectPath: string, provider: string, model: string, apiKey: string) {
+    const response = await apiClient.post(`/api/projects/${encodeURIComponent(projectPath)}/analyze/architecture`, {
+      provider,
+      model,
+      api_key: apiKey
+    })
+    return response.data
+  },
+
+  async startMCPServer(serverName: string) {
+    const response = await apiClient.post(`/api/mcp/servers/${serverName}/start`)
+    return response.data
   }
 }

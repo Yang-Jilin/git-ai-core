@@ -160,6 +160,82 @@ async def search_in_project(
         {"file": "README.md", "line": 5, "content": f"Found '{query}' in README.md"}
     ]
 
+class ArchitectureAnalysisRequest(BaseModel):
+    provider: str = Field(..., description="AI provider")
+    model: str = Field(..., description="AI model")
+    api_key: str = Field(..., description="API key")
+
+@router.post("/{project_path:path}/analyze/architecture")
+async def analyze_project_architecture(
+    project_path: str,
+    request: ArchitectureAnalysisRequest
+) -> Dict[str, Any]:
+    """分析项目架构并生成可视化文档"""
+    git_manager = GitManager().get_manager()
+    ai_manager = AIManager().get_manager()
+    
+    project = git_manager.get_project(project_path)
+    if not project or not project.is_valid():
+        raise HTTPException(status_code=404, detail="Project not found or invalid")
+    
+    # 获取项目信息
+    info = project.get_info()
+    file_tree = project.get_file_tree(max_depth=3)  # 获取更详细的结构
+    
+    try:
+        # 调用AI分析架构
+        response = await ai_manager.chat(
+            provider=request.provider,
+            model=request.model,
+            messages=[
+                {
+                    "role": "system", 
+                    "content": "你是一个专业的软件架构师，擅长分析代码架构并生成详细的文档和可视化图表。"
+                },
+                {
+                    "role": "user",
+                    "content": f"""
+请分析以下项目的架构并生成详细的架构文档：
+
+项目信息：
+- 路径: {project_path}
+- 名称: {info.get('name', 'Unknown')}
+- 分支: {info.get('current_branch', 'Unknown')}
+- 提交数: {info.get('commits_count', 0)}
+
+文件结构：
+{format_file_tree_for_analysis(file_tree)}
+
+请生成包含以下内容的架构文档：
+1. 项目概述和技术栈分析
+2. 主要模块和组件说明
+3. 依赖关系分析
+4. 架构图（使用Mermaid语法）
+5. 改进建议
+
+请使用Markdown格式返回，包含清晰的标题和结构。
+                    """.strip()
+                }
+            ],
+            api_key=request.api_key,
+            temperature=0.7,
+            max_tokens=3000
+        )
+        
+        # 保存架构文档到项目目录
+        architecture_doc = response["content"]
+        doc_path = save_architecture_documentation(project_path, architecture_doc)
+        
+        return {
+            "architecture_doc": architecture_doc,
+            "doc_path": doc_path,
+            "project_info": info,
+            "usage": response.get("usage", {})
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Architecture analysis failed: {str(e)}")
+
 # 辅助函数
 def count_files(tree: Dict[str, Any]) -> int:
     """统计文件数量"""
@@ -205,3 +281,33 @@ def collect_files(tree: Dict[str, Any], files: List[Dict[str, str]],
         dir_path = f"{current_path}/{tree['name']}" if current_path else tree['name']
         for child in tree.get("children", []):
             collect_files(child, files, extension, dir_path)
+
+def format_file_tree_for_analysis(tree: Dict[str, Any], indent: int = 0) -> str:
+    """格式化文件树为架构分析用的字符串"""
+    if tree.get("type") == "file":
+        return "  " * indent + f"📄 {tree['name']}\n"
+    
+    result = "  " * indent + f"📁 {tree['name']}/\n"
+    for child in tree.get("children", []):
+        result += format_file_tree_for_analysis(child, indent + 1)
+    return result
+
+def save_architecture_documentation(project_path: str, content: str) -> str:
+    """保存架构文档到项目目录"""
+    import os
+    from datetime import datetime
+    
+    # 创建文档目录
+    docs_dir = os.path.join(project_path, ".git-ai-docs")
+    os.makedirs(docs_dir, exist_ok=True)
+    
+    # 生成文件名
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"architecture_analysis_{timestamp}.md"
+    file_path = os.path.join(docs_dir, filename)
+    
+    # 写入文件
+    with open(file_path, 'w', encoding='utf-8') as f:
+        f.write(content)
+    
+    return file_path

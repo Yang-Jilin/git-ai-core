@@ -1,8 +1,10 @@
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 import json
 import os
+import asyncio
 from pathlib import Path
 from app.core.config import settings
+from app.core.comment_mcp_server import start_comment_mcp_server
 
 class McpServer:
     """MCP服务器管理器"""
@@ -71,4 +73,67 @@ class McpServer:
                 return True
             return False
         except Exception:
+            return False
+    
+    def get_builtin_servers(self) -> List[Dict[str, Any]]:
+        """获取内置MCP服务器配置"""
+        return [
+            {
+                "name": "comment-generator",
+                "type": "builtin",
+                "description": "代码注释生成服务器",
+                "host": "127.0.0.1",
+                "port": 8001,
+                "tools": [
+                    {
+                        "name": "generate_comments",
+                        "description": "为代码文件生成注释",
+                        "inputSchema": {
+                            "type": "object",
+                            "properties": {
+                                "file_path": {"type": "string", "description": "文件路径"},
+                                "file_content": {"type": "string", "description": "文件内容"},
+                                "language": {"type": "string", "description": "编程语言"},
+                                "comment_style": {"type": "string", "description": "注释风格: detailed, brief, documentation"},
+                                "provider": {"type": "string", "description": "AI供应商"},
+                                "model": {"type": "string", "description": "AI模型"},
+                                "api_key": {"type": "string", "description": "API密钥"}
+                            },
+                            "required": ["file_path", "file_content", "api_key"]
+                        }
+                    },
+                    {
+                        "name": "apply_comments",
+                        "description": "将注释应用到代码文件",
+                        "inputSchema": {
+                            "type": "object",
+                            "properties": {
+                                "file_path": {"type": "string", "description": "文件路径"},
+                                "original_content": {"type": "string", "description": "原始代码内容"},
+                                "comments": {"type": "string", "description": "注释内容"}
+                            },
+                            "required": ["file_path", "original_content", "comments"]
+                        }
+                    }
+                ]
+            }
+        ]
+    
+    async def start_builtin_server(self, server_name: str) -> bool:
+        """启动内置MCP服务器"""
+        builtin_servers = self.get_builtin_servers()
+        server_config = next((s for s in builtin_servers if s["name"] == server_name), None)
+        
+        if not server_config:
+            return False
+        
+        try:
+            if server_name == "comment-generator":
+                # 在后台启动注释生成服务器
+                asyncio.create_task(start_comment_mcp_server())
+                return True
+            
+            return False
+        except Exception as e:
+            print(f"Error starting builtin server {server_name}: {e}")
             return False

@@ -2,7 +2,13 @@ import React, { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'react-hot-toast'
-import { FolderIcon, DocumentTextIcon, TrashIcon } from '@heroicons/react/24/outline'
+import { 
+  FolderIcon, 
+  DocumentTextIcon, 
+  TrashIcon, 
+  DocumentChartBarIcon,
+  PlayIcon 
+} from '@heroicons/react/24/outline'
 import { api } from '../../services/api'
 import { FileViewer } from '../FileViewer'
 
@@ -55,6 +61,11 @@ export const ProjectDetail: React.FC = () => {
   const [isLoadingFile, setIsLoadingFile] = useState(false)
   // 添加展开文件夹状态
   const [expandedFolders, setExpandedFolders] = useState<Record<string, boolean>>({})
+  // 一键触发功能状态
+  const [isGeneratingArchitecture, setIsGeneratingArchitecture] = useState(false)
+  const [architectureResult, setArchitectureResult] = useState('')
+  const [isStartingMCP, setIsStartingMCP] = useState(false)
+  const [mcpStartResult, setMcpStartResult] = useState('')
 
   const decodedPath = decodeURIComponent(path || '')
 
@@ -151,6 +162,50 @@ export const ProjectDetail: React.FC = () => {
       ...prev,
       [folderPath]: !prev[folderPath]
     }))
+  }
+
+  // 一键生成架构文档
+  const handleGenerateArchitecture = async () => {
+    const provider = localStorage.getItem('ai-provider')
+    const model = localStorage.getItem('ai-model')
+    const apiKey = localStorage.getItem('ai-api-key')
+
+    if (!provider || !model || !apiKey) {
+      toast.error('请先配置AI设置')
+      return
+    }
+
+    setIsGeneratingArchitecture(true)
+    try {
+      const result = await api.generateArchitectureDocumentation(
+        decodedPath,
+        provider,
+        model,
+        apiKey
+      )
+      setArchitectureResult(result.analysis || result.message || '架构文档生成成功')
+      toast.success('架构文档生成成功')
+    } catch (error) {
+      console.error('生成架构文档失败:', error)
+      toast.error('生成架构文档失败')
+    } finally {
+      setIsGeneratingArchitecture(false)
+    }
+  }
+
+  // 一键启动MCP服务器
+  const handleStartMCPServer = async () => {
+    setIsStartingMCP(true)
+    try {
+      const result = await api.startMCPServer('comment-generator')
+      setMcpStartResult(result.message || 'MCP服务器启动成功')
+      toast.success('MCP服务器启动成功')
+    } catch (error) {
+      console.error('启动MCP服务器失败:', error)
+      toast.error('启动MCP服务器失败')
+    } finally {
+      setIsStartingMCP(false)
+    }
   }
 
   // 修改renderFileTree函数
@@ -364,6 +419,48 @@ export const ProjectDetail: React.FC = () => {
         </div>
 
         <div className="space-y-6">
+          {/* 一键触发功能 */}
+          <div className="bg-white rounded-lg shadow p-6">
+            <h2 className="text-lg font-semibold mb-4">一键功能</h2>
+            <div className="space-y-3">
+              <button
+                onClick={handleGenerateArchitecture}
+                disabled={isGeneratingArchitecture}
+                className="w-full flex items-center justify-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50"
+              >
+                <DocumentChartBarIcon className="h-4 w-4 mr-2" />
+                {isGeneratingArchitecture ? '生成中...' : '生成架构文档'}
+              </button>
+              
+              <button
+                onClick={handleStartMCPServer}
+                disabled={isStartingMCP}
+                className="w-full flex items-center justify-center px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:opacity-50"
+              >
+                <PlayIcon className="h-4 w-4 mr-2" />
+                {isStartingMCP ? '启动中...' : '启动MCP服务器'}
+              </button>
+            </div>
+            
+            {architectureResult && (
+              <div className="mt-4 p-3 bg-green-50 rounded-lg">
+                <h3 className="text-sm font-medium text-green-900 mb-1">架构文档结果</h3>
+                <div className="text-sm text-green-700 whitespace-pre-wrap">
+                  {architectureResult}
+                </div>
+              </div>
+            )}
+            
+            {mcpStartResult && (
+              <div className="mt-4 p-3 bg-purple-50 rounded-lg">
+                <h3 className="text-sm font-medium text-purple-900 mb-1">MCP服务器状态</h3>
+                <div className="text-sm text-purple-700 whitespace-pre-wrap">
+                  {mcpStartResult}
+                </div>
+              </div>
+            )}
+          </div>
+
           <div className="bg-white rounded-lg shadow p-6">
             <h2 className="text-lg font-semibold mb-4">最近提交</h2>
             <div className="space-y-3">
