@@ -298,7 +298,7 @@ def save_architecture_documentation(project_path: str, content: str) -> str:
     from datetime import datetime
     
     # 创建文档目录
-    docs_dir = os.path.join(project_path, ".git-ai-docs")
+    docs_dir = os.path.join(project_path, "git-ai-docs")
     os.makedirs(docs_dir, exist_ok=True)
     
     # 生成文件名
