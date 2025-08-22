@@ -164,40 +164,6 @@ class DeepSeekProvider(AIProvider):
         except Exception:
             return False
 
-class OllamaProvider(AIProvider):
-    """Ollama本地供应商实现"""
-
-    async def chat(self, model: str, messages: List[Dict[str, str]], api_key: str, **kwargs) -> Dict[str, Any]:
-        base_url = kwargs.get('base_url', 'http://localhost:11434/v1')
-        client = openai.AsyncOpenAI(
-            api_key=api_key or "ollama",
-            base_url=base_url
-        )
-
-        response = await client.chat.completions.create(
-            model=model,
-            messages=messages,
-            temperature=kwargs.get('temperature', 0.7),
-            max_tokens=kwargs.get('max_tokens', 2000)
-        )
-
-        return {
-            "content": response.choices[0].message.content,
-            "usage": {
-                "prompt_tokens": response.usage.prompt_tokens,
-                "completion_tokens": response.usage.completion_tokens,
-                "total_tokens": response.usage.total_tokens
-            }
-        }
-
-    async def test_connection(self, api_key: str, base_url: Optional[str] = None) -> bool:
-        try:
-            base_url = base_url or 'http://localhost:11434/v1'
-            async with httpx.AsyncClient() as client:
-                response = await client.get(f"{base_url}/models")
-                return response.status_code == 200
-        except Exception:
-            return False
 
 class MoonshotProvider(AIProvider):
     """Moonshot供应商实现"""
@@ -252,7 +218,6 @@ class AIManager:
             'anthropic': AnthropicProvider(),
             'gemini': GeminiProvider(),
             'deepseek': DeepSeekProvider(),
-            'ollama': OllamaProvider(),
             'moonshot': MoonshotProvider()
         }
         
@@ -288,14 +253,6 @@ class AIManager:
                 'models': ['deepseek-chat', 'deepseek-reasoner'],
                 'default_base_url': 'https://api.deepseek.com/v1',
                 'requires_api_key': True
-            },
-            'ollama': {
-                'name': 'Ollama',
-                'icon': '🦙',
-                'description': 'Local models',
-                'models': ['llama3.3', 'qwen2.5-coder', 'deepseek-coder'],
-                'default_base_url': 'http://localhost:11434/v1',
-                'requires_api_key': False
             },
             'moonshot': {
                 'name': 'Moonshot',
