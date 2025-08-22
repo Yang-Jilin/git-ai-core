@@ -12,6 +12,7 @@ class ProjectAnalysisRequest(BaseModel):
     provider: str = Field(..., description="AI provider")
     model: str = Field(..., description="AI model")
     api_key: str = Field(..., description="API key")
+    base_url: Optional[str] = Field(None, description="Base URL for AI provider")
 
 class ProjectSummary(BaseModel):
     project_path: str = Field(..., description="Project path")
@@ -92,7 +93,8 @@ async def analyze_project(request: ProjectAnalysisRequest) -> Dict[str, Any]:
             provider=request.provider,
             model=request.model,
             messages=messages,
-            api_key=request.api_key
+            api_key=request.api_key,
+            base_url=request.base_url
         )
         
         return {
@@ -164,6 +166,7 @@ class ArchitectureAnalysisRequest(BaseModel):
     provider: str = Field(..., description="AI provider")
     model: str = Field(..., description="AI model")
     api_key: str = Field(..., description="API key")
+    base_url: Optional[str] = Field(None, description="Base URL for AI provider")
 
 @router.post("/{project_path:path}/analyze/architecture")
 async def analyze_project_architecture(
@@ -218,6 +221,7 @@ async def analyze_project_architecture(
                 }
             ],
             api_key=request.api_key,
+            base_url=request.base_url,
             temperature=0.7,
             max_tokens=3000
         )

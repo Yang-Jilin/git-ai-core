@@ -61,31 +61,16 @@ def get_mcp_server():
     from app.main import app
     return app.state.mcp_server
 
-def get_mcp_manager():
-    from app.main import app
-    return app.state.mcp_server  # 使用同一个对象
 
 @router.get("/servers")
 async def list_servers() -> Dict[str, Any]:
-    """列出所有MCP服务器（包括内置服务器）"""
+    """列出所有MCP服务器"""
     mcp_server = get_mcp_server()
-    mcp_manager = get_mcp_manager()
     
     # 获取配置的服务器
     configured_servers = mcp_server.list_servers()
     
-    # 获取内置服务器
-    builtin_servers = mcp_manager.get_builtin_servers()
-    
-    # 合并结果
-    result = {}
-    result.update(configured_servers)
-    
-    # 添加内置服务器
-    for server in builtin_servers:
-        result[server["name"]] = server
-    
-    return result
+    return configured_servers
 
 @router.get("/servers/{server_name}")
 async def get_server(server_name: str) -> Dict[str, Any]:
@@ -166,25 +151,6 @@ async def execute_tool(request: MCPRequest) -> Dict[str, Any]:
         }
     }
 
-@router.post("/servers/{server_name}/start")
-async def start_server(server_name: str) -> Dict[str, Any]:
-    """启动MCP服务器"""
-    mcp_manager = get_mcp_manager()
-    
-    try:
-        success = await mcp_manager.start_builtin_server(server_name)
-        
-        if success:
-            return {
-                "success": True,
-                "message": f"服务器 {server_name} 启动成功",
-                "server": server_name
-            }
-        else:
-            raise HTTPException(status_code=404, detail=f"服务器 {server_name} 不存在或启动失败")
-            
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"启动服务器失败: {str(e)}")
 
 @router.get("/tools/{server_name}")
 async def list_tools(server_name: str) -> List[Dict[str, Any]]:

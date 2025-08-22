@@ -126,13 +126,24 @@ export const AISettings: React.FC = () => {
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     基础URL（可选）
                   </label>
-                  <input
-                    type="url"
-                    value={baseUrl}
-                    onChange={(e) => setBaseUrl(e.target.value)}
-                    placeholder={providers[selectedProvider].default_base_url}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
+                  {selectedProvider === 'moonshot' ? (
+                    <select
+                      value={baseUrl}
+                      onChange={(e) => setBaseUrl(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="international">国际版 (api.moonshot.ai)</option>
+                      <option value="china">中国版 (api.moonshot.cn)</option>
+                    </select>
+                  ) : (
+                    <input
+                      type="url"
+                      value={baseUrl}
+                      onChange={(e) => setBaseUrl(e.target.value)}
+                      placeholder={providers[selectedProvider].default_base_url}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  )}
                 </div>
 
                 <div className="flex space-x-3 pt-4">

@@ -86,13 +86,14 @@ export const api = {
     return response.data
   },
 
-  async analyzeProject(projectPath: string, query: string, provider: string, model: string, apiKey: string) {
+  async analyzeProject(projectPath: string, query: string, provider: string, model: string, apiKey: string, baseUrl?: string) {
     const response = await apiClient.post(`/api/projects/${encodeURIComponent(projectPath)}/analyze`, {
       project_path: projectPath,
       query,
       provider,
       model,
-      api_key: apiKey
+      api_key: apiKey,
+      base_url: baseUrl
     })
     return response.data
   },
@@ -114,17 +115,27 @@ export const api = {
   },
 
   // 一键触发功能
-  async generateArchitectureDocumentation(projectPath: string, provider: string, model: string, apiKey: string) {
+  async generateArchitectureDocumentation(projectPath: string, provider: string, model: string, apiKey: string, baseUrl?: string) {
     const response = await apiClient.post(`/api/projects/${encodeURIComponent(projectPath)}/analyze/architecture`, {
       provider,
       model,
-      api_key: apiKey
+      api_key: apiKey,
+      base_url: baseUrl
     })
     return response.data
   },
 
-  async startMCPServer(serverName: string) {
-    const response = await apiClient.post(`/api/mcp/servers/${serverName}/start`)
+
+  // 文件注释生成功能
+  async generateFileComments(projectPath: string, filePath: string, fileContent: string, provider: string, model: string, apiKey: string, language?: string) {
+    const response = await apiClient.post(`/api/projects/${encodeURIComponent(projectPath)}/generate-comments`, {
+      file_path: filePath,
+      file_content: fileContent,
+      language: language || 'auto',
+      provider,
+      model,
+      api_key: apiKey
+    })
     return response.data
   }
 }
