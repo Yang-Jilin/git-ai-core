@@ -1,5 +1,11 @@
 import React, { useRef, useEffect, useState } from 'react'
-import { DocumentTextIcon, ArrowDownTrayIcon, ClipboardDocumentIcon } from '@heroicons/react/24/outline'
+import { 
+  DocumentTextIcon, 
+  ArrowDownTrayIcon, 
+  ClipboardDocumentIcon,
+  ChatBubbleLeftRightIcon,
+  EyeIcon
+} from '@heroicons/react/24/outline'
 import Editor from '@monaco-editor/react'
 import { editor } from 'monaco-editor'
 import MarkdownIt from 'markdown-it'
@@ -9,6 +15,8 @@ import 'github-markdown-css'
 import hljs from 'highlight.js'
 // 将不存在的github-light.css改为github.css
 import 'highlight.js/styles/github.css'
+import { toast } from 'react-hot-toast'
+import { api } from '../services/api'
 
 type IStandaloneCodeEditor = editor.IStandaloneCodeEditor
 
@@ -16,12 +24,18 @@ interface FileViewerProps {
   fileName: string
   fileContent: string
   filePath: string
+  projectRoot: string
   onClose: () => void
 }
 
-export const FileViewer: React.FC<FileViewerProps> = ({ fileName, fileContent, filePath, onClose }) => {
+export const FileViewer: React.FC<FileViewerProps> = ({ fileName, fileContent, filePath, projectRoot, onClose }) => {
   const editorRef = useRef<IStandaloneCodeEditor | null>(null)
   const [markdownHtml, setMarkdownHtml] = useState('')
+  const [isGeneratingComments, setIsGeneratingComments] = useState(false)
+  const [isPreviewingComments, setIsPreviewingComments] = useState(false)
+  const [commentPreview, setCommentPreview] = useState('')
+  const [showCommentPreview, setShowCommentPreview] = useState(false)
+  const [commentStyle, setCommentStyle] = useState('detailed')
   const isMarkdown = fileName.toLowerCase().endsWith('.md')
 
   // 初始化Markdown解析器
@@ -75,6 +89,89 @@ export const FileViewer: React.FC<FileViewerProps> = ({ fileName, fileContent, f
 
   const formatLineCount = (content: string) => {
     return content.split('\n').length
+  }
+
+  // 生成注释
+  const handleGenerateComments = async () => {
+    if (isMarkdown) {
+      toast.error('Markdown文件不支持注释生成')
+      return
+    }
+
+    setIsGeneratingComments(true)
+    try {
+      const result = await api.executeMCPTool('comment-server', 'generate_comments', {
+        project_root: projectRoot,
+        file_path: filePath,
+        comment_style: commentStyle
+      })
+
+      if (result.success) {
+        const commentedCode = result.result.commented_code
+        
+        // 写入注释到文件
+        const writeResult = await api.executeMCPTool('comment-server', 'write_comments', {
+          project_root: projectRoot,
+          file_path: filePath,
+          content: commentedCode
+        })
+
+        if (writeResult.success) {
+          toast.success('注释生成并写入成功')
+          // 重新加载文件内容
+          window.location.reload()
+        } else {
+          toast.error('写入文件失败')
+        }
+      } else {
+        toast.error(`生成注释失败: ${result.error}`)
+      }
+    } catch (error) {
+      toast.error('生成注释时发生错误')
+      console.error('Generate comments error:', error)
+    } finally {
+      setIsGeneratingComments(false)
+    }
+  }
+
+  // 预览注释
+  const handlePreviewComments = async () => {
+    if (isMarkdown) {
+      toast.error('Markdown文件不支持注释预览')
+      return
+    }
+
+    setIsPreviewingComments(true)
+    try {
+      const result = await api.executeMCPTool('comment-server', 'preview_comments', {
+        project_root: projectRoot,
+        file_path: filePath,
+        comment_style: commentStyle
+      })
+
+      if (result.success) {
+        setCommentPreview(result.result.preview)
+        setShowCommentPreview(true)
+        toast.success('注释预览生成成功')
+      } else {
+        toast.error(`预览注释失败: ${result.error}`)
+      }
+    } catch (error) {
+      toast.error('预览注释时发生错误')
+      console.error('Preview comments error:', error)
+    } finally {
+      setIsPreviewingComments(false)
+    }
+  }
+
+  // 检查是否支持注释生成
+  const canGenerateComments = () => {
+    const ext = fileName.split('.').pop()?.toLowerCase() || ''
+    const supportedExtensions = [
+      'py', 'js', 'jsx', 'ts', 'tsx', 'java', 'cpp', 'c', 'h', 'hpp', 
+      'go', 'rs', 'php', 'rb', 'sh', 'sql', 'css', 'scss', 'sass'
+    ]
+    return supportedExtensions.includes(ext) && !isMarkdown
   }
 
   // 根据文件扩展名确定语言
@@ -143,6 +240,42 @@ export const FileViewer: React.FC<FileViewerProps> = ({ fileName, fileContent, f
             <span className="text-xs text-gray-500">
               {formatLineCount(fileContent)} lines · {formatFileSize(fileContent)}
             </span>
+            
+            {/* 注释生成相关按钮 */}
+            {canGenerateComments() && (
+              <>
+                <div className="flex items-center space-x-1">
+                  <select
+                    value={commentStyle}
+                    onChange={(e) => setCommentStyle(e.target.value)}
+                    className="text-xs border border-gray-300 rounded px-2 py-1 bg-white"
+                  >
+                    <option value="detailed">详细注释</option>
+                    <option value="brief">简洁注释</option>
+                    <option value="documentation">文档注释</option>
+                  </select>
+                  
+                  <button
+                    onClick={handlePreviewComments}
+                    disabled={isPreviewingComments}
+                    className="p-1 text-blue-400 hover:text-blue-600 disabled:text-gray-300"
+                    title="预览注释"
+                  >
+                    <EyeIcon className="h-4 w-4" />
+                  </button>
+                  
+                  <button
+                    onClick={handleGenerateComments}
+                    disabled={isGeneratingComments}
+                    className="p-1 text-green-400 hover:text-green-600 disabled:text-gray-300"
+                    title="生成注释"
+                  >
+                    <ChatBubbleLeftRightIcon className="h-4 w-4" />
+                  </button>
+                </div>
+              </>
+            )}
+            
             <button
               onClick={handleCopy}
               className="p-1 text-gray-400 hover:text-gray-600"
@@ -166,6 +299,41 @@ export const FileViewer: React.FC<FileViewerProps> = ({ fileName, fileContent, f
           </div>
         </div>
       </div>
+
+      {/* 注释预览模态框 */}
+      {showCommentPreview && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-4xl w-full max-h-[80vh] overflow-auto">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold">注释预览</h3>
+              <button
+                onClick={() => setShowCommentPreview(false)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                ×
+              </button>
+            </div>
+            <div className="bg-gray-100 p-4 rounded">
+              <pre className="text-sm whitespace-pre-wrap">{commentPreview}</pre>
+            </div>
+            <div className="mt-4 flex justify-end space-x-2">
+              <button
+                onClick={() => setShowCommentPreview(false)}
+                className="px-4 py-2 text-gray-600 hover:text-gray-800"
+              >
+                取消
+              </button>
+              <button
+                onClick={handleGenerateComments}
+                disabled={isGeneratingComments}
+                className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 disabled:bg-gray-400"
+              >
+                {isGeneratingComments ? '生成中...' : '确认生成'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 文件内容 - 根据文件类型决定单栏或双栏布局 */}
       <div className="flex-1 overflow-hidden">

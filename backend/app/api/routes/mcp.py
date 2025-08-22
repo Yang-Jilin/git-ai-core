@@ -4,6 +4,7 @@ from typing import List, Dict, Any, Optional
 import json
 import os
 from pathlib import Path
+from app.core.comment_mcp_server import comment_mcp_server
 
 router = APIRouter()
 
@@ -141,7 +142,11 @@ async def remove_server(server_name: str) -> Dict[str, Any]:
 @router.post("/execute")
 async def execute_tool(request: MCPRequest) -> Dict[str, Any]:
     """执行MCP工具"""
-    # 这里需要实现实际的MCP工具执行逻辑
+    # 处理注释生成MCP服务器的请求
+    if request.server_name == "comment-server":
+        return await _handle_comment_server_request(request.tool_name, request.arguments)
+    
+    # 这里需要实现其他MCP服务器的执行逻辑
     # 目前返回模拟响应
     return {
         "success": True,
@@ -151,11 +156,155 @@ async def execute_tool(request: MCPRequest) -> Dict[str, Any]:
         }
     }
 
+async def _handle_comment_server_request(tool_name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
+    """处理注释服务器请求"""
+    try:
+        # 获取项目根目录和文件相对路径
+        project_root = arguments.get("project_root")
+        file_path = arguments.get("file_path")
+        
+        if not project_root or not file_path:
+            raise HTTPException(status_code=400, detail="Missing project_root or file_path parameter")
+        
+        # 拼接完整文件路径
+        full_path = os.path.join(project_root, file_path)
+        
+        if tool_name == "generate_comments":
+            comment_style = arguments.get("comment_style", "detailed")
+            
+            # 添加调试信息
+            print(f"Generating comments for: {full_path}")
+            print(f"Project root: {project_root}")
+            print(f"File path: {file_path}")
+            
+            result = await comment_mcp_server.generate_comments(full_path, comment_style)
+            return {"success": result["success"], "result": result}
+            
+        elif tool_name == "preview_comments":
+            comment_style = arguments.get("comment_style", "detailed")
+            
+            # 添加调试信息
+            print(f"Previewing comments for: {full_path}")
+            print(f"Project root: {project_root}")
+            print(f"File path: {file_path}")
+            
+            result = await comment_mcp_server.preview_comments(full_path, comment_style)
+            return {"success": result["success"], "result": result}
+            
+        elif tool_name == "write_comments":
+            content = arguments.get("content")
+            
+            if not content:
+                raise HTTPException(status_code=400, detail="Missing content parameter")
+            
+            success = await comment_mcp_server.write_file(full_path, content)
+            return {"success": success, "result": {"message": "File written successfully"}}
+            
+        elif tool_name == "read_file":
+            content = await comment_mcp_server.read_file(full_path)
+            return {"success": True, "result": {"content": content}}
+            
+        elif tool_name == "get_supported_languages":
+            languages = comment_mcp_server.get_supported_languages()
+            return {"success": True, "result": {"languages": languages}}
+            
+        elif tool_name == "get_comment_styles":
+            styles = comment_mcp_server.get_comment_styles()
+            return {"success": True, "result": {"styles": styles}}
+            
+        else:
+            raise HTTPException(status_code=404, detail=f"Tool {tool_name} not found")
+            
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
 
 @router.get("/tools/{server_name}")
 async def list_tools(server_name: str) -> List[Dict[str, Any]]:
     """列出MCP服务器的所有工具"""
-    # 这里需要实现实际的工具列表获取逻辑
+    # 返回注释服务器的工具列表
+    if server_name == "comment-server":
+        return [
+            {
+                "name": "generate_comments",
+                "description": "生成代码注释",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "project_root": {"type": "string", "description": "项目根目录路径"},
+                        "file_path": {"type": "string", "description": "文件相对路径"},
+                        "comment_style": {
+                            "type": "string", 
+                            "description": "注释风格",
+                            "enum": ["detailed", "brief", "documentation"],
+                            "default": "detailed"
+                        }
+                    },
+                    "required": ["project_root", "file_path"]
+                }
+            },
+            {
+                "name": "preview_comments",
+                "description": "预览注释效果",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "project_root": {"type": "string", "description": "项目根目录路径"},
+                        "file_path": {"type": "string", "description": "文件相对路径"},
+                        "comment_style": {
+                            "type": "string", 
+                            "description": "注释风格",
+                            "enum": ["detailed", "brief", "documentation"],
+                            "default": "detailed"
+                        }
+                    },
+                    "required": ["project_root", "file_path"]
+                }
+            },
+            {
+                "name": "write_comments",
+                "description": "写入注释到文件",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "project_root": {"type": "string", "description": "项目根目录路径"},
+                        "file_path": {"type": "string", "description": "文件相对路径"},
+                        "content": {"type": "string", "description": "文件内容"}
+                    },
+                    "required": ["project_root", "file_path", "content"]
+                }
+            },
+            {
+                "name": "read_file",
+                "description": "读取文件内容",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "project_root": {"type": "string", "description": "项目根目录路径"},
+                        "file_path": {"type": "string", "description": "文件相对路径"}
+                    },
+                    "required": ["project_root", "file_path"]
+                }
+            },
+            {
+                "name": "get_supported_languages",
+                "description": "获取支持的编程语言",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {}
+                }
+            },
+            {
+                "name": "get_comment_styles",
+                "description": "获取可用的注释风格",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {}
+                }
+            }
+        ]
+    
+    # 这里需要实现其他MCP服务器的工具列表获取逻辑
     # 目前返回模拟响应
     return [
         {

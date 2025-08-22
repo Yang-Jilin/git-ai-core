@@ -276,6 +276,7 @@ export const ProjectDetail: React.FC = () => {
           fileName={selectedFile.split('/').pop() || ''}
           fileContent={fileContent}
           filePath={selectedFile}
+          projectRoot={decodedPath}
           onClose={() => {
             setSelectedFile(null)
             setFileContent(null)

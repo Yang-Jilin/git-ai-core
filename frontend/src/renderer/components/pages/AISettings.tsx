@@ -41,13 +41,25 @@ export const AISettings: React.FC = () => {
     }
   }
 
-  const handleSave = () => {
+  const handleSave = async () => {
     // 保存设置到localStorage
     localStorage.setItem('ai-provider', selectedProvider)
     localStorage.setItem('ai-model', selectedModel)
     localStorage.setItem('ai-api-key', apiKey)
     localStorage.setItem('ai-base-url', baseUrl)
-    toast.success('设置已保存！')
+    
+    // 同时保存到配置文件
+    try {
+      await api.saveAIConfig({
+        ai_provider: selectedProvider,
+        ai_model: selectedModel,
+        ai_api_key: apiKey,
+        ai_base_url: baseUrl
+      })
+      toast.success('设置已保存到配置文件！')
+    } catch (error) {
+      toast.error('保存到配置文件失败，但已保存到本地存储')
+    }
   }
 
   const providerList = Object.entries(providers).map(([key, provider]) => ({

@@ -4,7 +4,7 @@ const API_BASE_URL = 'http://localhost:8000'
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 30000,
+  timeout: 120000, // 增加超时时间到120秒
 })
 
 export const api = {
@@ -114,6 +114,20 @@ export const api = {
     return response.data
   },
 
+  async executeMCPTool(serverName: string, toolName: string, arguments_: any) {
+    const response = await apiClient.post('/api/mcp/execute', {
+      server_name: serverName,
+      tool_name: toolName,
+      arguments: arguments_
+    })
+    return response.data
+  },
+
+  async getMCPTools(serverName: string) {
+    const response = await apiClient.get(`/api/mcp/tools/${serverName}`)
+    return response.data
+  },
+
   // 一键触发功能
   async generateArchitectureDocumentation(projectPath: string, provider: string, model: string, apiKey: string, baseUrl?: string) {
     const response = await apiClient.post(`/api/projects/${encodeURIComponent(projectPath)}/analyze/architecture`, {
@@ -136,6 +150,22 @@ export const api = {
       model,
       api_key: apiKey
     })
+    return response.data
+  },
+
+  // 配置管理
+  async getAIConfig() {
+    const response = await apiClient.get('/api/config/ai')
+    return response.data
+  },
+
+  async saveAIConfig(config: any) {
+    const response = await apiClient.post('/api/config/ai', config)
+    return response.data
+  },
+
+  async deleteAIConfig() {
+    const response = await apiClient.delete('/api/config/ai')
     return response.data
   }
 }
