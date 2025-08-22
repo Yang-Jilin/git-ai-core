@@ -3,8 +3,7 @@ import {
   DocumentTextIcon, 
   ArrowDownTrayIcon, 
   ClipboardDocumentIcon,
-  ChatBubbleLeftRightIcon,
-  EyeIcon
+  ChatBubbleLeftRightIcon
 } from '@heroicons/react/24/outline'
 import Editor from '@monaco-editor/react'
 import { editor } from 'monaco-editor'
@@ -32,9 +31,6 @@ export const FileViewer: React.FC<FileViewerProps> = ({ fileName, fileContent, f
   const editorRef = useRef<IStandaloneCodeEditor | null>(null)
   const [markdownHtml, setMarkdownHtml] = useState('')
   const [isGeneratingComments, setIsGeneratingComments] = useState(false)
-  const [isPreviewingComments, setIsPreviewingComments] = useState(false)
-  const [commentPreview, setCommentPreview] = useState('')
-  const [showCommentPreview, setShowCommentPreview] = useState(false)
   const [commentStyle, setCommentStyle] = useState('detailed')
   const isMarkdown = fileName.toLowerCase().endsWith('.md')
 
@@ -134,35 +130,6 @@ export const FileViewer: React.FC<FileViewerProps> = ({ fileName, fileContent, f
     }
   }
 
-  // 预览注释
-  const handlePreviewComments = async () => {
-    if (isMarkdown) {
-      toast.error('Markdown文件不支持注释预览')
-      return
-    }
-
-    setIsPreviewingComments(true)
-    try {
-      const result = await api.executeMCPTool('comment-server', 'preview_comments', {
-        project_root: projectRoot,
-        file_path: filePath,
-        comment_style: commentStyle
-      })
-
-      if (result.success) {
-        setCommentPreview(result.result.preview)
-        setShowCommentPreview(true)
-        toast.success('注释预览生成成功')
-      } else {
-        toast.error(`预览注释失败: ${result.error}`)
-      }
-    } catch (error) {
-      toast.error('预览注释时发生错误')
-      console.error('Preview comments error:', error)
-    } finally {
-      setIsPreviewingComments(false)
-    }
-  }
 
   // 检查是否支持注释生成
   const canGenerateComments = () => {
@@ -256,15 +223,6 @@ export const FileViewer: React.FC<FileViewerProps> = ({ fileName, fileContent, f
                   </select>
                   
                   <button
-                    onClick={handlePreviewComments}
-                    disabled={isPreviewingComments}
-                    className="p-1 text-blue-400 hover:text-blue-600 disabled:text-gray-300"
-                    title="预览注释"
-                  >
-                    <EyeIcon className="h-4 w-4" />
-                  </button>
-                  
-                  <button
                     onClick={handleGenerateComments}
                     disabled={isGeneratingComments}
                     className="p-1 text-green-400 hover:text-green-600 disabled:text-gray-300"
@@ -300,40 +258,6 @@ export const FileViewer: React.FC<FileViewerProps> = ({ fileName, fileContent, f
         </div>
       </div>
 
-      {/* 注释预览模态框 */}
-      {showCommentPreview && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-4xl w-full max-h-[80vh] overflow-auto">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-semibold">注释预览</h3>
-              <button
-                onClick={() => setShowCommentPreview(false)}
-                className="text-gray-500 hover:text-gray-700"
-              >
-                ×
-              </button>
-            </div>
-            <div className="bg-gray-100 p-4 rounded">
-              <pre className="text-sm whitespace-pre-wrap">{commentPreview}</pre>
-            </div>
-            <div className="mt-4 flex justify-end space-x-2">
-              <button
-                onClick={() => setShowCommentPreview(false)}
-                className="px-4 py-2 text-gray-600 hover:text-gray-800"
-              >
-                取消
-              </button>
-              <button
-                onClick={handleGenerateComments}
-                disabled={isGeneratingComments}
-                className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 disabled:bg-gray-400"
-              >
-                {isGeneratingComments ? '生成中...' : '确认生成'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* 文件内容 - 根据文件类型决定单栏或双栏布局 */}
       <div className="flex-1 overflow-hidden">
