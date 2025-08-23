@@ -280,7 +280,8 @@ class GitManager:
     
     def get_project_overview(self, path: str) -> Dict[str, Any]:
         """获取项目概览"""
-        project = self.get_project(path)
+        resolved_path = str(Path(path).resolve())
+        project = self.get_project(resolved_path)
         if not project or not project.is_valid():
             return {"error": "Project not found or invalid"}
         
@@ -448,34 +449,45 @@ class GitManager:
             }
 
     async def pull_updates(self, path: str) -> Dict[str, Any]:
-        """从远程仓库拉取最新更新"""
+        """从远程仓库强制拉取最新更新"""
         try:
             resolved_path = str(Path(path).resolve())
-            project = self.get_project(path)
+            project = self.get_project(resolved_path)
             
             if not project or not project.is_valid():
                 return {"error": "Project not found or invalid"}
             
-            # 执行git pull
+            # 获取当前分支
+            current_branch = project.repo.active_branch.name
+            
+            # 执行强制git pull
             loop = asyncio.get_event_loop()
             result = await loop.run_in_executor(
                 self.executor,
-                project.repo.remotes.origin.pull
+                lambda: project.repo.git.execute(['git', 'pull', '-f', 'origin', current_branch])
             )
             
-            if result and len(result) > 0:
-                pull_info = result[0]
-                return {
-                    "success": True,
-                    "message": "Updates pulled successfully",
-                    "commits": len(pull_info.commit),
-                    "files_changed": len(pull_info.commit.diff('HEAD~1')) if pull_info.commit.parents else 0
-                }
-            else:
-                return {
-                    "success": True,
-                    "message": "Already up to date"
-                }
+            # 更新数据库中的最后更新时间
+            try:
+                from app.core.database import SessionLocal
+                from app.services.repository_service import RepositoryService
+                
+                db = SessionLocal()
+                repo_service = RepositoryService(db)
+                repo_service.update_repository_last_updated(resolved_path)
+                db.close()
+            except Exception as db_error:
+                logger.warning(f"Failed to update database: {db_error}")
+            
+            # 重新加载项目信息
+            project._load_repo()
+            
+            return {
+                "success": True,
+                "message": "强制更新成功",
+                "branch": current_branch,
+                "output": result
+            }
                 
         except Exception as e:
             logger.error(f"Failed to pull updates: {e}")
@@ -484,7 +496,8 @@ class GitManager:
     def get_project_status(self, path: str) -> Dict[str, Any]:
         """获取项目状态（是否有更新等）"""
         try:
-            project = self.get_project(path)
+            resolved_path = str(Path(path).resolve())
+            project = self.get_project(resolved_path)
             if not project or not project.is_valid():
                 return {"error": "Project not found or invalid"}
             

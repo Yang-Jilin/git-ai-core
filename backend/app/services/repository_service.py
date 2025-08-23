@@ -101,6 +101,28 @@ class RepositoryService:
             self.db.rollback()
             logger.error(f"Failed to update last accessed: {e}")
             return False
+
+    def update_repository_last_updated(self, local_path: str) -> bool:
+        """更新仓库最后访问时间（用于记录git pull操作时间）"""
+        try:
+            normalized_path = str(Path(local_path).resolve())
+            repo = self.db.query(Repository).filter(
+                Repository.local_path == normalized_path
+            ).first()
+            
+            if repo:
+                from sqlalchemy.sql import func
+                repo.last_accessed = func.now()
+                self.db.commit()
+                logger.info(f"Updated last_accessed time for repository: {normalized_path}")
+                return True
+            
+            return False
+            
+        except Exception as e:
+            self.db.rollback()
+            logger.error(f"Failed to update last accessed time: {e}")
+            return False
     
     def cleanup_invalid_paths(self) -> int:
         """清理无效路径的记录"""

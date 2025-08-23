@@ -6,7 +6,8 @@ import {
   FolderIcon, 
   DocumentTextIcon, 
   TrashIcon, 
-  DocumentChartBarIcon
+  DocumentChartBarIcon,
+  ArrowPathIcon
 } from '@heroicons/react/24/outline'
 import { api } from '../../services/api'
 import { FileViewer } from '../FileViewer'
@@ -63,6 +64,8 @@ export const ProjectDetail: React.FC = () => {
   // 一键触发功能状态
   const [isGeneratingArchitecture, setIsGeneratingArchitecture] = useState(false)
   const [architectureResult, setArchitectureResult] = useState('')
+  const [isUpdating, setIsUpdating] = useState(false)
+  const [updateResult, setUpdateResult] = useState('')
 
   const decodedPath = decodeURIComponent(path || '')
 
@@ -161,6 +164,33 @@ export const ProjectDetail: React.FC = () => {
       ...prev,
       [folderPath]: !prev[folderPath]
     }))
+  }
+
+  // 更新仓库
+  const handleUpdateRepository = async () => {
+    setIsUpdating(true)
+    try {
+      const result = await api.pullUpdates(decodedPath)
+      
+      if (result.success) {
+        setUpdateResult(result.message || '仓库更新成功')
+        toast.success('仓库更新成功')
+        
+        // 更新成功后自动刷新页面数据
+        setTimeout(() => {
+          queryClient.invalidateQueries({ queryKey: ['project', decodedPath] })
+        }, 1000)
+      } else {
+        setUpdateResult(result.error || '仓库更新失败')
+        toast.error(result.error || '仓库更新失败')
+      }
+    } catch (error) {
+      console.error('更新仓库失败:', error)
+      setUpdateResult('更新仓库时发生错误')
+      toast.error('更新仓库失败')
+    } finally {
+      setIsUpdating(false)
+    }
   }
 
   // 一键生成架构文档
@@ -301,6 +331,14 @@ export const ProjectDetail: React.FC = () => {
         </div>
         
         <div className="flex space-x-3">
+          <button
+            onClick={handleUpdateRepository}
+            disabled={isUpdating}
+            className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <ArrowPathIcon className="h-4 w-4 mr-2" />
+            {isUpdating ? '更新中...' : '更新仓库'}
+          </button>
           <button
             onClick={() => setShowDeleteConfirm(true)}
             disabled={isDeleting}
