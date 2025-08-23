@@ -76,7 +76,14 @@ class McpServer:
     
     def get_builtin_servers(self) -> List[Dict[str, Any]]:
         """获取内置MCP服务器配置"""
-        return []
+        return [
+            {
+                "name": "comment-server",
+                "command": "python",
+                "args": ["-m", "app.core.comment_mcp_server"],
+                "description": "内置注释生成MCP服务器，提供代码注释生成功能"
+            }
+        ]
     
     async def start_builtin_server(self, server_name: str) -> bool:
         """启动内置MCP服务器"""

@@ -25,12 +25,14 @@ interface FileViewerProps {
   filePath: string
   projectRoot: string
   onClose: () => void
+  onFileContentUpdate?: (newContent: string) => void
 }
 
-export const FileViewer: React.FC<FileViewerProps> = ({ fileName, fileContent, filePath, projectRoot, onClose }) => {
+export const FileViewer: React.FC<FileViewerProps> = ({ fileName, fileContent, filePath, projectRoot, onClose, onFileContentUpdate }) => {
   const editorRef = useRef<IStandaloneCodeEditor | null>(null)
   const [markdownHtml, setMarkdownHtml] = useState('')
   const [isGeneratingComments, setIsGeneratingComments] = useState(false)
+  const [isReloading, setIsReloading] = useState(false)
   const [commentStyle, setCommentStyle] = useState('detailed')
   const isMarkdown = fileName.toLowerCase().endsWith('.md')
 
@@ -87,6 +89,23 @@ export const FileViewer: React.FC<FileViewerProps> = ({ fileName, fileContent, f
     return content.split('\n').length
   }
 
+  // 重新加载文件内容
+  const reloadFileContent = async () => {
+    setIsReloading(true)
+    try {
+      const result = await api.getFileContent(projectRoot, filePath)
+      if (onFileContentUpdate) {
+        onFileContentUpdate(result.content)
+      }
+      toast.success('文件内容已更新')
+    } catch (error) {
+      console.error('重新加载文件失败:', error)
+      toast.error('重新加载文件失败')
+    } finally {
+      setIsReloading(false)
+    }
+  }
+
   // 生成注释
   const handleGenerateComments = async () => {
     if (isMarkdown) {
@@ -114,8 +133,8 @@ export const FileViewer: React.FC<FileViewerProps> = ({ fileName, fileContent, f
 
         if (writeResult.success) {
           toast.success('注释生成并写入成功')
-          // 重新加载文件内容
-          window.location.reload()
+          // 重新加载文件内容而不是刷新页面
+          await reloadFileContent()
         } else {
           toast.error('写入文件失败')
         }
@@ -224,7 +243,7 @@ export const FileViewer: React.FC<FileViewerProps> = ({ fileName, fileContent, f
                   
                   <button
                     onClick={handleGenerateComments}
-                    disabled={isGeneratingComments}
+                    disabled={isGeneratingComments || isReloading}
                     className="p-1 text-green-400 hover:text-green-600 disabled:text-gray-300"
                     title="生成注释"
                   >
@@ -236,21 +255,24 @@ export const FileViewer: React.FC<FileViewerProps> = ({ fileName, fileContent, f
             
             <button
               onClick={handleCopy}
-              className="p-1 text-gray-400 hover:text-gray-600"
+              disabled={isReloading}
+              className="p-1 text-gray-400 hover:text-gray-600 disabled:text-gray-300"
               title="复制代码"
             >
               <ClipboardDocumentIcon className="h-4 w-4" />
             </button>
             <button
               onClick={handleDownload}
-              className="p-1 text-gray-400 hover:text-gray-600"
+              disabled={isReloading}
+              className="p-1 text-gray-400 hover:text-gray-600 disabled:text-gray-300"
               title="下载文件"
             >
               <ArrowDownTrayIcon className="h-4 w-4" />
             </button>
             <button
               onClick={onClose}
-              className="text-sm text-gray-500 hover:text-gray-700"
+              disabled={isReloading}
+              className="text-sm text-gray-500 hover:text-gray-700 disabled:text-gray-300"
             >
               关闭
             </button>
@@ -260,7 +282,16 @@ export const FileViewer: React.FC<FileViewerProps> = ({ fileName, fileContent, f
 
 
       {/* 文件内容 - 根据文件类型决定单栏或双栏布局 */}
-      <div className="flex-1 overflow-hidden">
+      <div className="flex-1 overflow-hidden relative">
+        {isReloading && (
+          <div className="absolute inset-0 bg-white bg-opacity-80 flex items-center justify-center z-10">
+            <div className="flex flex-col items-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-2"></div>
+              <span className="text-sm text-gray-600">正在重新加载文件...</span>
+            </div>
+          </div>
+        )}
+        
         {isMarkdown ? (
           <div className="flex h-full w-full">
             {/* 左侧Markdown源码 */}

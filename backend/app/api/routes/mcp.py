@@ -71,6 +71,17 @@ async def list_servers() -> Dict[str, Any]:
     # 获取配置的服务器
     configured_servers = mcp_server.list_servers()
     
+    # 获取内置服务器并合并
+    builtin_servers = mcp_server.get_builtin_servers()
+    for server in builtin_servers:
+        configured_servers[server["name"]] = {
+            "command": server["command"],
+            "args": server.get("args", []),
+            "env": server.get("env", {}),
+            "description": server.get("description", ""),
+            "builtin": True  # 标记为内置服务器
+        }
+    
     return configured_servers
 
 @router.get("/servers/{server_name}")

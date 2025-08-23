@@ -186,6 +186,11 @@ export const ProjectDetail: React.FC = () => {
       )
       setArchitectureResult(result.analysis || result.message || '架构文档生成成功')
       toast.success('架构文档生成成功')
+      
+      // 生成成功后自动刷新页面数据
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ['project', decodedPath] })
+      }, 1000)
     } catch (error) {
       console.error('生成架构文档失败:', error)
       toast.error('生成架构文档失败')
@@ -281,6 +286,7 @@ export const ProjectDetail: React.FC = () => {
             setSelectedFile(null)
             setFileContent(null)
           }}
+          onFileContentUpdate={(newContent) => setFileContent(newContent)}
         />
       </div>
     )

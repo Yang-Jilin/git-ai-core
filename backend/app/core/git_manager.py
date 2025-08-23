@@ -66,7 +66,7 @@ class GitProject:
         except Exception as e:
             return {"error": str(e)}
     
-    def get_file_tree(self, max_depth: int = 3) -> Dict[str, Any]:
+    def get_file_tree(self, max_depth: int = 50) -> Dict[str, Any]:
         """获取项目文件树"""
         if not self.is_valid():
             return {}

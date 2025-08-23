@@ -10,6 +10,7 @@ interface MCPServer {
   args?: string[]
   env?: Record<string, string>
   description?: string
+  builtin?: boolean
 }
 
 export const MCPSettings: React.FC = () => {
@@ -67,7 +68,8 @@ export const MCPSettings: React.FC = () => {
     command: config.command,
     args: config.args,
     env: config.env,
-    description: config.description
+    description: config.description,
+    builtin: config.builtin || false
   }))
 
   return (
@@ -102,7 +104,14 @@ export const MCPSettings: React.FC = () => {
               <div key={server.name} className="px-6 py-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h3 className="text-sm font-medium text-gray-900">{server.name}</h3>
+                    <div className="flex items-center space-x-2">
+                      <h3 className="text-sm font-medium text-gray-900">{server.name}</h3>
+                      {server.builtin && (
+                        <span className="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded-full">
+                          内置
+                        </span>
+                      )}
+                    </div>
                     <p className="text-sm text-gray-500">{server.description || '无描述'}</p>
                     <div className="mt-2">
                       <p className="text-xs text-gray-600">
@@ -115,12 +124,14 @@ export const MCPSettings: React.FC = () => {
                       )}
                     </div>
                   </div>
-                  <button
-                    onClick={() => removeMutation.mutate(server.name)}
-                    className="p-2 text-red-600 hover:bg-red-50 rounded-md"
-                  >
-                    <TrashIcon className="h-4 w-4" />
-                  </button>
+                  {!server.builtin && (
+                    <button
+                      onClick={() => removeMutation.mutate(server.name)}
+                      className="p-2 text-red-600 hover:bg-red-50 rounded-md"
+                    >
+                      <TrashIcon className="h-4 w-4" />
+                    </button>
+                  )}
                 </div>
               </div>
             ))}
