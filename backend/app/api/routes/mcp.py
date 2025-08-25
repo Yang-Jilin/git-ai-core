@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 from app.core.comment_mcp_server import comment_mcp_server
+from app.core.project_mcp_server import project_mcp_server
 
 router = APIRouter()
 
@@ -157,6 +158,10 @@ async def execute_tool(request: MCPRequest) -> Dict[str, Any]:
     if request.server_name == "comment-server":
         return await _handle_comment_server_request(request.tool_name, request.arguments)
     
+    # 处理项目文件读取MCP服务器的请求
+    if request.server_name == "project-file-server":
+        return await _handle_project_file_server_request(request.tool_name, request.arguments)
+    
     # 这里需要实现其他MCP服务器的执行逻辑
     # 目前返回模拟响应
     return {
@@ -222,6 +227,52 @@ async def _handle_comment_server_request(tool_name: str, arguments: Dict[str, An
         elif tool_name == "get_comment_styles":
             styles = comment_mcp_server.get_comment_styles()
             return {"success": True, "result": {"styles": styles}}
+            
+        else:
+            raise HTTPException(status_code=404, detail=f"Tool {tool_name} not found")
+            
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+async def _handle_project_file_server_request(tool_name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
+    """处理项目文件服务器请求"""
+    try:
+        # 获取项目路径和文件相对路径
+        project_path = arguments.get("project_path")
+        
+        if not project_path:
+            raise HTTPException(status_code=400, detail="Missing project_path parameter")
+        
+        if tool_name == "read_project_file":
+            file_path = arguments.get("file_path")
+            if not file_path:
+                raise HTTPException(status_code=400, detail="Missing file_path parameter")
+            
+            result = await project_mcp_server.read_project_file(project_path, file_path)
+            return {"success": result["success"], "result": result}
+            
+        elif tool_name == "list_project_files":
+            directory = arguments.get("directory", "")
+            max_depth = arguments.get("max_depth", 2)
+            
+            result = await project_mcp_server.list_project_files(project_path, directory, max_depth)
+            return {"success": result["success"], "result": result}
+            
+        elif tool_name == "get_file_metadata":
+            file_path = arguments.get("file_path")
+            if not file_path:
+                raise HTTPException(status_code=400, detail="Missing file_path parameter")
+            
+            result = await project_mcp_server.get_file_metadata(project_path, file_path)
+            return {"success": result["success"], "result": result}
+            
+        elif tool_name == "get_supported_extensions":
+            extensions = project_mcp_server.get_supported_extensions()
+            return {"success": True, "result": {"extensions": extensions}}
+            
+        elif tool_name == "get_server_info":
+            info = project_mcp_server.get_server_info()
+            return {"success": True, "result": info}
             
         else:
             raise HTTPException(status_code=404, detail=f"Tool {tool_name} not found")
@@ -308,6 +359,64 @@ async def list_tools(server_name: str) -> List[Dict[str, Any]]:
             {
                 "name": "get_comment_styles",
                 "description": "获取可用的注释风格",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {}
+                }
+            }
+        ]
+    
+    # 返回项目文件服务器的工具列表
+    if server_name == "project-file-server":
+        return [
+            {
+                "name": "read_project_file",
+                "description": "读取项目文件内容",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "project_path": {"type": "string", "description": "项目根目录路径"},
+                        "file_path": {"type": "string", "description": "文件相对路径"}
+                    },
+                    "required": ["project_path", "file_path"]
+                }
+            },
+            {
+                "name": "list_project_files",
+                "description": "列出项目文件结构",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "project_path": {"type": "string", "description": "项目根目录路径"},
+                        "directory": {"type": "string", "description": "目录路径", "default": ""},
+                        "max_depth": {"type": "integer", "description": "最大深度", "default": 2, "minimum": 1, "maximum": 5}
+                    },
+                    "required": ["project_path"]
+                }
+            },
+            {
+                "name": "get_file_metadata",
+                "description": "获取文件元数据",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "project_path": {"type": "string", "description": "项目根目录路径"},
+                        "file_path": {"type": "string", "description": "文件相对路径"}
+                    },
+                    "required": ["project_path", "file_path"]
+                }
+            },
+            {
+                "name": "get_supported_extensions",
+                "description": "获取支持的文件扩展名",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {}
+                }
+            },
+            {
+                "name": "get_server_info",
+                "description": "获取服务器信息",
                 "inputSchema": {
                     "type": "object",
                     "properties": {}

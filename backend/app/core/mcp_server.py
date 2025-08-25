@@ -82,6 +82,12 @@ class McpServer:
                 "command": "python",
                 "args": ["-m", "app.core.comment_mcp_server"],
                 "description": "内置注释生成MCP服务器，提供代码注释生成功能"
+            },
+            {
+                "name": "project-file-server",
+                "command": "python",
+                "args": ["-m", "app.core.project_mcp_server"],
+                "description": "内置项目文件读取MCP服务器，提供文件读取和目录列表功能"
             }
         ]
     

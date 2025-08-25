@@ -167,5 +167,29 @@ export const api = {
   async deleteAIConfig() {
     const response = await apiClient.delete('/api/config/ai')
     return response.data
+  },
+
+  // 智能对话功能
+  async startSmartConversation(projectPath: string) {
+    const response = await apiClient.post('/api/ai/smart-conversation/start', {
+      project_path: projectPath
+    })
+    return response.data
+  },
+
+  async smartChat(conversationId: string, message: string, projectPath: string) {
+    const response = await apiClient.post('/api/ai/smart-conversation/chat', {
+      conversation_id: conversationId,
+      message,
+      project_path: projectPath
+    })
+    return response.data
+  },
+
+  async endSmartConversation(conversationId: string) {
+    const response = await apiClient.post('/api/ai/smart-conversation/end', {
+      conversation_id: conversationId
+    })
+    return response.data
   }
 }

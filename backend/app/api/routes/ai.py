@@ -1,7 +1,9 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 from typing import List, Dict, Any, Optional
+import time
 from app.core.ai_manager import AIManager
+from app.core.smart_conversation_manager import smart_conversation_manager
 
 router = APIRouter()
 
@@ -35,6 +37,11 @@ class AnalyzeArchitectureRequest(BaseModel):
     provider: str = Field(..., description="AI provider")
     model: str = Field(..., description="AI model")
     api_key: str = Field(..., description="API key")
+
+class SmartConversationRequest(BaseModel):
+    project_path: str = Field(..., description="Project path")
+    conversation_id: Optional[str] = Field(None, description="Conversation ID")
+    message: str = Field(..., description="User message")
 
 class ProviderConfig(BaseModel):
     name: str
@@ -198,3 +205,74 @@ def format_file_tree_for_ai(tree: Dict[str, Any], indent: int = 0) -> str:
     for child in tree.get("children", []):
         result += format_file_tree_for_ai(child, indent + 1)
     return result
+
+# 智能对话端点
+@router.post("/smart-conversation/start")
+async def start_smart_conversation(request: SmartConversationRequest) -> Dict[str, Any]:
+    """开始智能对话会话"""
+    try:
+        # 生成会话ID
+        conversation_id = f"conv_{int(time.time() * 1000)}"
+        
+        # 获取项目文件结构
+        from app.core.git_manager import GitManager
+        git_manager = GitManager()
+        # 首先添加项目到管理器
+        git_manager.add_project(request.project_path)
+        project = git_manager.get_project(request.project_path)
+        if not project:
+            raise HTTPException(status_code=404, detail="Project not found")
+        file_tree = project.get_file_tree(max_depth=2)
+        
+        # 构建初始系统提示词
+        system_prompt = f"""你是一个专业的代码分析助手，可以帮助用户分析项目架构、代码结构和技术栈。
+
+当前分析的项目路径: {request.project_path}
+项目文件结构:
+{format_file_tree_for_ai(file_tree)}
+
+你可以使用以下工具来获取更多信息：
+1. read_project_file - 读取项目文件内容
+2. list_project_files - 列出项目文件结构
+3. get_file_metadata - 获取文件元数据
+
+请根据用户的问题，智能地使用这些工具来获取所需信息，然后进行分析和回答。
+"""
+
+        return {
+            "conversation_id": conversation_id,
+            "system_prompt": system_prompt,
+            "project_path": request.project_path
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to start conversation: {str(e)}")
+
+@router.post("/smart-conversation/chat")
+async def smart_chat(request: SmartConversationRequest) -> Dict[str, Any]:
+    """智能对话聊天"""
+    try:
+        # 使用智能对话管理器处理请求
+        result = await smart_conversation_manager.process_smart_chat(
+            request.conversation_id or f"conv_{int(time.time() * 1000)}",
+            request.project_path,
+            request.message
+        )
+        
+        return {
+            "response": result["response"],
+            "conversation_id": result["conversation_id"],
+            "tool_calls": result["tool_calls"]
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Smart chat failed: {str(e)}")
+
+@router.post("/smart-conversation/end")
+async def end_smart_conversation(request: SmartConversationRequest) -> Dict[str, Any]:
+    """结束智能对话会话"""
+    return {
+        "success": True,
+        "message": "Conversation ended successfully",
+        "conversation_id": request.conversation_id
+    }

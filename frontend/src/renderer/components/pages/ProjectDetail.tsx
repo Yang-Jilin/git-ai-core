@@ -7,10 +7,13 @@ import {
   DocumentTextIcon, 
   TrashIcon, 
   DocumentChartBarIcon,
-  ArrowPathIcon
+  ArrowPathIcon,
+  ChatBubbleLeftRightIcon,
+  LightBulbIcon
 } from '@heroicons/react/24/outline'
 import { api } from '../../services/api'
 import { FileViewer } from '../FileViewer'
+import { SmartChatPanel } from './SmartChatPanel'
 
 interface Project {
   info: {
@@ -66,6 +69,9 @@ export const ProjectDetail: React.FC = () => {
   const [architectureResult, setArchitectureResult] = useState('')
   const [isUpdating, setIsUpdating] = useState(false)
   const [updateResult, setUpdateResult] = useState('')
+  // 智能对话模式状态
+  const [analysisMode, setAnalysisMode] = useState<'simple' | 'smart'>('simple')
+  const [previewFile, setPreviewFile] = useState<{path: string, content: string} | null>(null)
 
   const decodedPath = decodeURIComponent(path || '')
 
@@ -229,6 +235,16 @@ export const ProjectDetail: React.FC = () => {
     }
   }
 
+  // 处理文件预览
+  const handleFilePreview = (filePath: string, content: string) => {
+    setPreviewFile({ path: filePath, content })
+  }
+
+  // 关闭文件预览
+  const handleClosePreview = () => {
+    setPreviewFile(null)
+  }
+
 
   // 修改renderFileTree函数
   const renderFileTree = (node: FileTreeNode, level = 0, currentPath = '') => {
@@ -317,6 +333,33 @@ export const ProjectDetail: React.FC = () => {
             setFileContent(null)
           }}
           onFileContentUpdate={(newContent) => setFileContent(newContent)}
+        />
+      </div>
+    )
+  }
+
+  // 文件预览模式
+  if (previewFile) {
+    return (
+      <div className="p-6">
+        <div className="mb-4">
+          <button
+            onClick={handleClosePreview}
+            className="text-blue-600 hover:text-blue-800 text-sm"
+          >
+            ← 返回智能对话
+          </button>
+        </div>
+        <FileViewer
+          fileName={previewFile.path.split('/').pop() || ''}
+          fileContent={previewFile.content}
+          filePath={previewFile.path}
+          projectRoot={decodedPath}
+          onClose={handleClosePreview}
+          onFileContentUpdate={(newContent) => setPreviewFile({
+            ...previewFile,
+            content: newContent
+          })}
         />
       </div>
     )
@@ -414,40 +457,73 @@ export const ProjectDetail: React.FC = () => {
             </div>
           </div>
 
-          <div className="bg-white rounded-lg shadow p-6">
-            <h2 className="text-lg font-semibold mb-4">AI分析</h2>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  询问关于此项目的问题
-                </label>
-                <textarea
-                  value={analysisQuery}
-                  onChange={(e) => setAnalysisQuery(e.target.value)}
-                  placeholder="例如：这个项目的主要目的是什么？代码是如何组织的？"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  rows={3}
+          {analysisMode === 'simple' ? (
+            <div className="bg-white rounded-lg shadow p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold">AI分析</h2>
+                <button
+                  onClick={() => setAnalysisMode('smart')}
+                  className="flex items-center px-3 py-1 bg-blue-100 text-blue-700 rounded-md hover:bg-blue-200 text-sm"
+                >
+                  <LightBulbIcon className="h-4 w-4 mr-1" />
+                  切换到智能对话
+                </button>
+              </div>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    询问关于此项目的问题
+                  </label>
+                  <textarea
+                    value={analysisQuery}
+                    onChange={(e) => setAnalysisQuery(e.target.value)}
+                    placeholder="例如：这个项目的主要目的是什么？代码是如何组织的？"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    rows={3}
+                  />
+                </div>
+                
+                <button
+                  onClick={handleAnalyze}
+                  disabled={isAnalyzing}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+                >
+                  {isAnalyzing ? '分析中...' : '分析'}
+                </button>
+
+                {analysisResult && (
+                  <div className="mt-4 p-4 bg-gray-50 rounded-lg">
+                    <h3 className="text-sm font-medium text-gray-900 mb-2">分析结果</h3>
+                    <div className="text-sm text-gray-700 whitespace-pre-wrap">
+                      {analysisResult}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="bg-white rounded-lg shadow p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold flex items-center">
+                  <ChatBubbleLeftRightIcon className="h-5 w-5 mr-2 text-blue-600" />
+                  智能对话分析
+                </h2>
+                <button
+                  onClick={() => setAnalysisMode('simple')}
+                  className="flex items-center px-3 py-1 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 text-sm"
+                >
+                  ← 返回简单分析
+                </button>
+              </div>
+              <div className="border rounded-lg" style={{ height: '400px' }}>
+                <SmartChatPanel
+                  projectPath={decodedPath}
+                  fileTree={project?.file_tree}
+                  onFilePreview={handleFilePreview}
                 />
               </div>
-              
-              <button
-                onClick={handleAnalyze}
-                disabled={isAnalyzing}
-                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
-              >
-                {isAnalyzing ? '分析中...' : '分析'}
-              </button>
-
-              {analysisResult && (
-                <div className="mt-4 p-4 bg-gray-50 rounded-lg">
-                  <h3 className="text-sm font-medium text-gray-900 mb-2">分析结果</h3>
-                  <div className="text-sm text-gray-700 whitespace-pre-wrap">
-                    {analysisResult}
-                  </div>
-                </div>
-              )}
             </div>
-          </div>
+          )}
         </div>
 
         <div className="space-y-6">
