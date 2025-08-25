@@ -12,21 +12,51 @@ class SmartConversationManager:
         self.mcp_server = McpServer()
         self.conversations = {}
     
+    async def get_project_file_tree(self, project_path: str) -> Dict[str, Any]:
+        """获取项目文件树结构"""
+        try:
+            # 使用MCP工具获取文件树
+            result = await self.execute_tool_call(
+                "project-file-server",
+                "list_project_files",
+                {
+                    "project_path": project_path,
+                    "max_depth": 10  # 增加深度以获取更完整的文件树
+                }
+            )
+            
+            if result.get("success") and result.get("file_tree"):
+                return result["file_tree"]
+            else:
+                # 如果获取失败，返回空结构
+                return {"name": "project", "type": "directory", "children": []}
+                
+        except Exception as e:
+            print(f"获取文件树失败: {str(e)}")
+            return {"name": "project", "type": "directory", "children": []}
+    
     async def analyze_user_query(self, project_path: str, user_query: str) -> List[Dict[str, Any]]:
         """分析用户查询，决定需要读取哪些文件"""
-        # 构建AI提示词来分析需要读取的文件
+        # 首先获取项目文件树结构
+        file_tree = await self.get_project_file_tree(project_path)
+        
+        # 构建AI提示词来分析需要读取的文件，包含文件树信息
         prompt = f"""你是一个专业的代码分析助手。用户想要了解以下关于项目的问题：
 
 用户问题: {user_query}
 项目路径: {project_path}
 
-请分析这个问题，决定需要读取哪些文件来获取足够的信息来回答。考虑以下因素：
-1. 项目配置文件（package.json, requirements.txt, etc.）
-2. 主要的源代码文件
-3. 文档文件
-4. 配置文件
+项目文件树结构:
+{json.dumps(file_tree, indent=2, ensure_ascii=False)}
 
-请返回一个JSON数组，包含需要读取的文件路径和读取原因，格式如下：
+请分析这个问题，基于项目文件树结构决定需要读取哪些文件来获取足够的信息来回答。考虑以下因素：
+1. 项目配置文件（package.json, requirements.txt, pyproject.toml, setup.py等）
+2. 主要的源代码文件（根据文件扩展名判断：.py, .js, .ts, .java等）
+3. 文档文件（README.md, docs/, 等）
+4. 配置文件（.env, config/, settings/等）
+5. 构建文件（Dockerfile, docker-compose.yml, Makefile等）
+
+请仔细分析文件树结构，选择最相关的文件。返回一个JSON数组，包含需要读取的文件路径和读取原因，格式如下：
 [
   {{
     "file_path": "相对路径",
@@ -34,7 +64,7 @@ class SmartConversationManager:
   }}
 ]
 
-只返回最重要的几个文件，能够回答用户问题即可，不要太多，最多返回6个文件。"""
+只返回最重要的几个文件，能够回答用户问题即可，不要太多，最多返回8个文件。确保文件路径准确且存在于项目中。"""
 
         
         messages = [
