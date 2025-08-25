@@ -449,7 +449,7 @@ class GitManager:
             }
 
     async def pull_updates(self, path: str) -> Dict[str, Any]:
-        """从远程仓库强制拉取最新更新"""
+        """从远程仓库强制拉取最新更新 - 增强版"""
         try:
             resolved_path = str(Path(path).resolve())
             project = self.get_project(resolved_path)
@@ -460,11 +460,23 @@ class GitManager:
             # 获取当前分支
             current_branch = project.repo.active_branch.name
             
-            # 执行强制git pull
             loop = asyncio.get_event_loop()
-            result = await loop.run_in_executor(
+            
+            # 先执行强制重置到远程最新状态
+            await loop.run_in_executor(
                 self.executor,
-                lambda: project.repo.git.execute(['git', 'pull', '-f', 'origin', current_branch])
+                lambda: project.repo.git.execute(['git', 'fetch', 'origin'])
+            )
+            
+            await loop.run_in_executor(
+                self.executor,
+                lambda: project.repo.git.execute(['git', 'reset', '--hard', f'origin/{current_branch}'])
+            )
+            
+            # 清理未跟踪文件
+            await loop.run_in_executor(
+                self.executor,
+                lambda: project.repo.git.execute(['git', 'clean', '-fd'])
             )
             
             # 更新数据库中的最后更新时间
@@ -486,7 +498,7 @@ class GitManager:
                 "success": True,
                 "message": "强制更新成功",
                 "branch": current_branch,
-                "output": result
+                "output": "已强制重置到远程最新状态"
             }
                 
         except Exception as e:
