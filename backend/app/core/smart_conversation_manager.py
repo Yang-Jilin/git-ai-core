@@ -41,12 +41,16 @@ class SmartConversationManager:
             {"role": "user", "content": prompt}
         ]
         
+        # 从配置文件获取AI配置
+        ai_config = self._get_ai_config()
+        
         # 使用AI分析需要读取的文件
         response = await self.ai_manager.chat(
-            provider="openai",  # 默认使用OpenAI，实际应该从配置获取
-            model="gpt-4o-mini",
+            provider=ai_config["provider"],
+            model=ai_config["model"],
             messages=messages,
-            api_key="dummy-key",  # 实际应该从配置获取
+            api_key=ai_config["api_key"],
+            base_url=ai_config.get("base_url"),
             temperature=0.3,
             max_tokens=500
         )
@@ -61,6 +65,57 @@ class SmartConversationManager:
                 {"file_path": "README.md", "reason": "了解项目概述和功能"},
                 {"file_path": "package.json", "reason": "了解项目依赖和配置"}
             ]
+    
+    def _get_ai_config(self) -> Dict[str, Any]:
+        """获取AI配置"""
+        try:
+            # 从配置文件读取AI配置
+            import json
+            import os
+            
+            # 查找正确的配置文件路径
+            current_dir = os.path.dirname(__file__)
+            config_paths = [
+                os.path.join(os.path.dirname(current_dir), 'api', 'AI-Config.json'),  # app/api/AI-Config.json
+                os.path.join(os.path.dirname(current_dir), 'AI-Config.json'),         # app/AI-Config.json
+                os.path.join(os.path.dirname(os.path.dirname(current_dir)), 'AI-Config.json'),  # backend/AI-Config.json
+            ]
+            
+            config = None
+            config_path = None
+            
+            for path in config_paths:
+                if os.path.exists(path):
+                    config_path = path
+                    with open(path, 'r', encoding='utf-8') as f:
+                        config = json.load(f)
+                    break
+            
+            if config:
+                return {
+                    "provider": config.get("ai_provider", "openai"),
+                    "model": config.get("ai_model", "gpt-4o-mini"),
+                    "api_key": config.get("ai_api_key", ""),
+                    "base_url": config.get("ai_base_url")
+                }
+            
+            # 如果配置文件不存在，尝试从环境变量获取
+            return {
+                "provider": os.getenv("AI_PROVIDER", "openai"),
+                "model": os.getenv("AI_MODEL", "gpt-4o-mini"),
+                "api_key": os.getenv("AI_API_KEY", ""),
+                "base_url": os.getenv("AI_BASE_URL")
+            }
+            
+        except Exception as e:
+            # 如果所有配置都失败，返回默认值
+            print(f"读取AI配置失败: {str(e)}")
+            return {
+                "provider": "openai",
+                "model": "gpt-4o-mini",
+                "api_key": "",
+                "base_url": None
+            }
     
     async def execute_tool_call(self, server_name: str, tool_name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
         """执行MCP工具调用"""
@@ -111,11 +166,15 @@ class SmartConversationManager:
             {"role": "user", "content": prompt}
         ]
         
+        # 从配置文件获取AI配置
+        ai_config = self._get_ai_config()
+        
         response = await self.ai_manager.chat(
-            provider="openai",
-            model="gpt-4o-mini",
+            provider=ai_config["provider"],
+            model=ai_config["model"],
             messages=messages,
-            api_key="dummy-key",
+            api_key=ai_config["api_key"],
+            base_url=ai_config.get("base_url"),
             temperature=0.7,
             max_tokens=1500
         )
