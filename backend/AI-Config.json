@@ -1,6 +1,0 @@
-{
-  "ai_provider": "deepseek",
-  "ai_model": "deepseek-chat",
-  "ai_api_key": "sk-f9b90ddbfb2c47cc8a8d4532298515d6",
-  "ai_base_url": "https://api.deepseek.com/v1"
-}

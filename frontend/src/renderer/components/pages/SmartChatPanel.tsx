@@ -37,16 +37,74 @@ interface SmartChatPanelProps {
   onFilePreview: (filePath: string, content: string) => void
 }
 
-export const SmartChatPanel: React.FC<SmartChatPanelProps> = ({
+export const SmartChatPanel: React.FC<SmartChatPanelProps> =({
   projectPath,
   fileTree,
   onFilePreview
 }) => {
-  const [messages, setMessages] = useState<Message[]>([])
+  // 从sessionStorage加载对话状态
+  const loadConversationState = useCallback(() => {
+    try {
+      const storageKey = `git-ai-chat-${projectPath}`
+      const saved = sessionStorage.getItem(storageKey)
+      if (saved) {
+        const state = JSON.parse(saved)
+        
+        // 将字符串timestamp转换回Date对象
+        const messagesWithDate = state.messages?.map((msg: any) => ({
+          ...msg,
+          timestamp: new Date(msg.timestamp)
+        })) || []
+        
+        return {
+          messages: messagesWithDate,
+          conversationId: state.conversationId || '',
+          isInitialized: state.isInitialized || false
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load conversation state:', error)
+    }
+    return {
+      messages: [],
+      conversationId: '',
+      isInitialized: false
+    }
+  }, [projectPath])
+
+  // 保存对话状态到sessionStorage
+  const saveConversationState = useCallback((state: {
+    messages: Message[]
+    conversationId: string
+    isInitialized: boolean
+  }) => {
+    try {
+      const storageKey = `git-ai-chat-${projectPath}`
+      sessionStorage.setItem(storageKey, JSON.stringify({
+        messages: state.messages,
+        conversationId: state.conversationId,
+        isInitialized: state.isInitialized,
+        timestamp: Date.now()
+      }))
+    } catch (error) {
+      console.error('Failed to save conversation state:', error)
+    }
+  }, [projectPath])
+
+  const [messages, setMessages] = useState<Message[]>(() => {
+    const state = loadConversationState()
+    return state.messages
+  })
   const [inputMessage, setInputMessage] = useState('')
   const [isLoading, setIsLoading] = useState(false)
-  const [conversationId, setConversationId] = useState<string>('')
-  const [isInitialized, setIsInitialized] = useState(false)
+  const [conversationId, setConversationId] = useState<string>(() => {
+    const state = loadConversationState()
+    return state.conversationId
+  })
+  const [isInitialized, setIsInitialized] = useState<boolean>(() => {
+    const state = loadConversationState()
+    return state.isInitialized
+  })
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
@@ -78,6 +136,13 @@ export const SmartChatPanel: React.FC<SmartChatPanelProps> = ({
       
       setMessages([welcomeMessage])
       setIsInitialized(true)
+      
+      // 保存状态
+      saveConversationState({
+        messages: [welcomeMessage],
+        conversationId: response.conversation_id,
+        isInitialized: true
+      })
     } catch (error) {
       console.error('初始化对话失败:', error)
       toast.error('初始化对话失败')
@@ -167,6 +232,15 @@ export const SmartChatPanel: React.FC<SmartChatPanelProps> = ({
       textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`
     }
   }, [inputMessage])
+
+  // 自动保存对话状态
+  useEffect(() => {
+    saveConversationState({
+      messages,
+      conversationId,
+      isInitialized
+    })
+  }, [messages, conversationId, isInitialized, saveConversationState])
 
   // 渲染消息内容
   const renderMessageContent = (message: Message) => {
