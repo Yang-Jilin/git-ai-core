@@ -183,3 +183,7 @@ tmp/
 .cache/
 logs/
 *.log
+
+# AI Configuration files
+backend/app/api/AI-Config.json
+backend/AI-Config.json
