@@ -41,7 +41,7 @@ class AnalyzeArchitectureRequest(BaseModel):
 class SmartConversationRequest(BaseModel):
     project_path: str = Field(..., description="Project path")
     conversation_id: Optional[str] = Field(None, description="Conversation ID")
-    message: str = Field(..., description="User message")
+    message: Optional[str] = Field(None, description="User message")
 
 class ProviderConfig(BaseModel):
     name: str

@@ -145,7 +145,7 @@ class SmartConversationManager:
             for file_path, content in file_contents.items()
         ])
         
-        prompt = f"""你是一个专业的代码分析助手。请基于以下文件内容回答用户的问题。
+        prompt = f"""你是一个专业的代码分析助手。请基于以下文件内容直接回答用户的问题，专注于解决用户的具体需求。
 
 用户问题: {user_query}
 项目路径: {project_path}
@@ -153,13 +153,9 @@ class SmartConversationManager:
 相关文件内容:
 {file_summary}
 
-请提供详细、专业的回答，包括：
-1. 项目技术栈分析
-2. 代码结构说明
-3. 主要功能特点
-4. 任何值得注意的发现
+请直接针对用户的问题提供解决方案或答案，不需要进行全面的项目分析。保持回答简洁、直接、实用。
 
-请使用中文回答，保持专业且易于理解。"""
+请使用中文回答，语言自然易懂。"""
         
         messages = [
             {"role": "system", "content": "你是一个专业的代码分析助手，擅长基于代码文件内容提供深入的项目分析。"},
