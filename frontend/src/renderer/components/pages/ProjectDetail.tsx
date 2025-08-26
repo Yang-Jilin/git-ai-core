@@ -1,103 +1,113 @@
-import React, { useState } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { toast } from 'react-hot-toast'
-import { 
-  FolderIcon, 
-  DocumentTextIcon, 
-  TrashIcon, 
+import React, { useState } from "react";
+import { useParams, useNavigate } from "react-router-dom";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "react-hot-toast";
+import {
+  FolderIcon,
+  DocumentTextIcon,
+  TrashIcon,
   DocumentChartBarIcon,
   ArrowPathIcon,
   ChatBubbleLeftRightIcon,
-  LightBulbIcon
-} from '@heroicons/react/24/outline'
-import { api } from '../../services/api'
-import { FileViewer } from '../FileViewer'
-import { SmartChatPanel } from './SmartChatPanel'
+  LightBulbIcon,
+  ChevronDownIcon,
+  ChevronRightIcon,
+} from "@heroicons/react/24/outline";
+import { api } from "../../services/api";
+import { FileViewer } from "../FileViewer";
+import { SmartChatPanel } from "./SmartChatPanel";
 
 interface Project {
   info: {
-    name: string
-    path: string
-    current_branch: string
-    commits_count: number
-    remote_url?: string
-  }
+    name: string;
+    path: string;
+    current_branch: string;
+    commits_count: number;
+    remote_url?: string;
+  };
   recent_commits?: Array<{
-    hash: string
-    message: string
-    author: string
-    date: string
-  }>
+    hash: string;
+    message: string;
+    author: string;
+    date: string;
+  }>;
   branches?: Array<{
-    name: string
-    is_active: boolean
-  }>
+    name: string;
+    is_active: boolean;
+  }>;
   file_tree?: {
-    type: 'file' | 'directory'
-    name: string
-    children?: any[]
-    size?: number
-    extension?: string
-  }
+    type: "file" | "directory";
+    name: string;
+    children?: any[];
+    size?: number;
+    extension?: string;
+  };
 }
 
 interface FileTreeNode {
-  type: 'file' | 'directory'
-  name: string
-  children?: FileTreeNode[]
-  size?: number
-  extension?: string
+  type: "file" | "directory";
+  name: string;
+  children?: FileTreeNode[];
+  size?: number;
+  extension?: string;
 }
 
 export const ProjectDetail: React.FC = () => {
-  const { path } = useParams<{ path: string }>()
-  const navigate = useNavigate()
-  const queryClient = useQueryClient()
-  const [analysisQuery, setAnalysisQuery] = useState('')
-  const [analysisResult, setAnalysisResult] = useState('')
-  const [isAnalyzing, setIsAnalyzing] = useState(false)
-  const [isDeleting, setIsDeleting] = useState(false)
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
-  const [selectedFile, setSelectedFile] = useState<string | null>(null)
-  const [fileContent, setFileContent] = useState<string | null>(null)
-  const [isLoadingFile, setIsLoadingFile] = useState(false)
+  const { path } = useParams<{ path: string }>();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const [analysisQuery, setAnalysisQuery] = useState("");
+  const [analysisResult, setAnalysisResult] = useState("");
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<string | null>(null);
+  const [fileContent, setFileContent] = useState<string | null>(null);
+  const [isLoadingFile, setIsLoadingFile] = useState(false);
   // 添加展开文件夹状态
-  const [expandedFolders, setExpandedFolders] = useState<Record<string, boolean>>({})
+  const [expandedFolders, setExpandedFolders] = useState<
+    Record<string, boolean>
+  >({});
   // 一键触发功能状态
-  const [isGeneratingArchitecture, setIsGeneratingArchitecture] = useState(false)
-  const [architectureResult, setArchitectureResult] = useState('')
-  const [isUpdating, setIsUpdating] = useState(false)
-  const [updateResult, setUpdateResult] = useState('')
+  const [isGeneratingArchitecture, setIsGeneratingArchitecture] =
+    useState(false);
+  const [architectureResult, setArchitectureResult] = useState("");
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [updateResult, setUpdateResult] = useState("");
   // 智能对话模式状态
-  const [analysisMode, setAnalysisMode] = useState<'simple' | 'smart'>('simple')
-  const [previewFile, setPreviewFile] = useState<{path: string, content: string} | null>(null)
+  const [analysisMode, setAnalysisMode] = useState<"simple" | "smart">(
+    "simple"
+  );
+  const [previewFile, setPreviewFile] = useState<{
+    path: string;
+    content: string;
+  } | null>(null);
 
-  const decodedPath = decodeURIComponent(path || '')
+  const decodedPath = decodeURIComponent(path || "");
 
   const { data: project, isLoading } = useQuery<Project>({
-    queryKey: ['project', decodedPath],
+    queryKey: ["project", decodedPath],
     queryFn: () => api.getProjectOverview(decodedPath),
-    enabled: !!decodedPath
-  })
+    enabled: !!decodedPath,
+  });
 
   const handleAnalyze = async () => {
     if (!analysisQuery.trim()) {
-      toast.error('请输入查询内容')
-      return
+      toast.error("请输入查询内容");
+      return;
     }
 
-    const provider = localStorage.getItem('ai-provider')
-    const model = localStorage.getItem('ai-model')
-    const apiKey = localStorage.getItem('ai-api-key')
-    const baseUrl = localStorage.getItem('ai-base-url')
+    const provider = localStorage.getItem("ai-provider");
+    const model = localStorage.getItem("ai-model");
+    const apiKey = localStorage.getItem("ai-api-key");
+    const baseUrl = localStorage.getItem("ai-base-url");
 
     if (!provider || !model || !apiKey) {
-      toast.error('请先配置AI设置')
-      return
+      toast.error("请先配置AI设置");
+      return;
     }
 
-    setIsAnalyzing(true)
+    setIsAnalyzing(true);
     try {
       const result = await api.analyzeProject(
         decodedPath,
@@ -106,112 +116,115 @@ export const ProjectDetail: React.FC = () => {
         model,
         apiKey,
         baseUrl || undefined
-      )
-      setAnalysisResult(result.analysis)
+      );
+      setAnalysisResult(result.analysis);
     } catch (error) {
-      toast.error('项目分析失败')
+      toast.error("项目分析失败");
     } finally {
-      setIsAnalyzing(false)
+      setIsAnalyzing(false);
     }
-  }
+  };
 
   const handleDeleteProject = async () => {
-    setIsDeleting(true)
+    setIsDeleting(true);
     try {
-      const result = await api.deleteProject(decodedPath)
-      
+      const result = await api.deleteProject(decodedPath);
+
       if (result.success) {
-        toast.success(result.message || '项目删除成功')
-        
-        queryClient.removeQueries({ queryKey: ['project', decodedPath] })
-        
-        navigate('/projects')
+        toast.success(result.message || "项目删除成功");
+
+        queryClient.removeQueries({ queryKey: ["project", decodedPath] });
+
+        navigate("/projects");
       } else {
         if (result.manual_action_needed) {
-          toast.error(result.error || '删除失败，需要手动操作')
-          alert(`删除失败详情：\n${result.details}\n\n请手动删除文件夹：${decodedPath}`)
+          toast.error(result.error || "删除失败，需要手动操作");
+          alert(
+            `删除失败详情：\n${result.details}\n\n请手动删除文件夹：${decodedPath}`
+          );
         } else {
-          toast.error(result.error || '删除项目失败')
+          toast.error(result.error || "删除项目失败");
         }
       }
     } catch (error: any) {
-      console.error('删除项目错误:', error)
-      const errorMessage = error.response?.data?.detail || error.message || '删除项目失败'
-      toast.error(`删除失败: ${errorMessage}`)
+      console.error("删除项目错误:", error);
+      const errorMessage =
+        error.response?.data?.detail || error.message || "删除项目失败";
+      toast.error(`删除失败: ${errorMessage}`);
     } finally {
-      setIsDeleting(false)
-      setShowDeleteConfirm(false)
+      setIsDeleting(false);
+      setShowDeleteConfirm(false);
     }
-  }
+  };
 
   const handleFileClick = async (filePath: string) => {
-    setIsLoadingFile(true)
+    setIsLoadingFile(true);
     try {
       // 清理文件路径：移除项目根目录前缀
-      const cleanFilePath = filePath.replace(/^[^\/]+\//, '')
-      
-      console.log('原始文件路径:', filePath)
-      console.log('清理后文件路径:', cleanFilePath)
-      
-      const result = await api.getFileContent(decodedPath, cleanFilePath)
-      setFileContent(result.content)
-      setSelectedFile(cleanFilePath)
+      const cleanFilePath = filePath.replace(/^[^\/]+\//, "");
+
+      console.log("原始文件路径:", filePath);
+      console.log("清理后文件路径:", cleanFilePath);
+
+      const result = await api.getFileContent(decodedPath, cleanFilePath);
+      setFileContent(result.content);
+      setSelectedFile(cleanFilePath);
     } catch (error) {
-      console.error('文件读取错误:', error)
-      toast.error('无法读取文件内容')
+      console.error("文件读取错误:", error);
+      toast.error("无法读取文件内容");
     } finally {
-      setIsLoadingFile(false)
+      setIsLoadingFile(false);
     }
-  }
+  };
 
   // 添加处理文件夹点击的函数
   const handleFolderClick = (folderPath: string) => {
-    setExpandedFolders(prev => ({
+    setExpandedFolders((prev) => ({
       ...prev,
-      [folderPath]: !prev[folderPath]
-    }))
-  }
+      [folderPath]: !prev[folderPath],
+    }));
+  };
 
   // 更新仓库
   const handleUpdateRepository = async () => {
-    setIsUpdating(true)
+    setIsUpdating(true);
     try {
-      const result = await api.pullUpdates(decodedPath)
-      
+      const result = await api.pullUpdates(decodedPath);
+
       if (result.success) {
-        setUpdateResult(result.message || '仓库更新成功')
-        toast.success('仓库更新成功')
-        
+        setUpdateResult(result.message || "仓库更新成功");
+        toast.success("仓库更新成功");
+
         // 更新成功后自动刷新页面数据
         setTimeout(() => {
-          queryClient.invalidateQueries({ queryKey: ['project', decodedPath] })
-        }, 1000)
+          queryClient.invalidateQueries({ queryKey: ["project", decodedPath] });
+        }, 1000);
       } else {
-        setUpdateResult(result.error || '仓库更新失败')
-        toast.error(result.error || '仓库更新失败')
+        setUpdateResult(result.error || "仓库更新失败");
+        toast.error(result.error || "仓库更新失败");
       }
     } catch (error) {
-      console.error('更新仓库失败:', error)
-      setUpdateResult('更新仓库时发生错误')
-      toast.error('更新仓库失败')
+      console.error("更新仓库失败:", error);
+      setUpdateResult("更新仓库时发生错误");
+      toast.error("更新仓库失败");
     } finally {
-      setIsUpdating(false)
+      setIsUpdating(false);
     }
-  }
+  };
 
   // 一键生成架构文档
   const handleGenerateArchitecture = async () => {
-    const provider = localStorage.getItem('ai-provider')
-    const model = localStorage.getItem('ai-model')
-    const apiKey = localStorage.getItem('ai-api-key')
-    const baseUrl = localStorage.getItem('ai-base-url')
+    const provider = localStorage.getItem("ai-provider");
+    const model = localStorage.getItem("ai-model");
+    const apiKey = localStorage.getItem("ai-api-key");
+    const baseUrl = localStorage.getItem("ai-base-url");
 
     if (!provider || !model || !apiKey) {
-      toast.error('请先配置AI设置')
-      return
+      toast.error("请先配置AI设置");
+      return;
     }
 
-    setIsGeneratingArchitecture(true)
+    setIsGeneratingArchitecture(true);
     try {
       const result = await api.generateArchitectureDocumentation(
         decodedPath,
@@ -219,75 +232,80 @@ export const ProjectDetail: React.FC = () => {
         model,
         apiKey,
         baseUrl || undefined
-      )
-      setArchitectureResult(result.analysis || result.message || '架构文档生成成功')
-      toast.success('架构文档生成成功')
-      
+      );
+      setArchitectureResult(
+        result.analysis || result.message || "架构文档生成成功"
+      );
+      toast.success("架构文档生成成功");
+
       // 生成成功后自动刷新页面数据
       setTimeout(() => {
-        queryClient.invalidateQueries({ queryKey: ['project', decodedPath] })
-      }, 1000)
+        queryClient.invalidateQueries({ queryKey: ["project", decodedPath] });
+      }, 1000);
     } catch (error) {
-      console.error('生成架构文档失败:', error)
-      toast.error('生成架构文档失败')
+      console.error("生成架构文档失败:", error);
+      toast.error("生成架构文档失败");
     } finally {
-      setIsGeneratingArchitecture(false)
+      setIsGeneratingArchitecture(false);
     }
-  }
+  };
 
   // 处理文件预览
   const handleFilePreview = (filePath: string, content: string) => {
-    setPreviewFile({ path: filePath, content })
-  }
+    setPreviewFile({ path: filePath, content });
+  };
 
   // 关闭文件预览
   const handleClosePreview = () => {
-    setPreviewFile(null)
-  }
+    setPreviewFile(null);
+  };
 
+  // 优化后的文件树渲染函数
+  const renderFileTree = (node: FileTreeNode, level = 0, currentPath = "") => {
+    const indent = level * 16;
+    const fullPath = currentPath ? `${currentPath}/${node.name}` : node.name;
+    const isExpanded = expandedFolders[fullPath] === true;
 
-  // 修改renderFileTree函数
-  const renderFileTree = (node: FileTreeNode, level = 0, currentPath = '') => {
-    const indent = level * 20
-    const fullPath = currentPath ? `${currentPath}/${node.name}` : node.name
-    // 根据层级决定默认展开状态：第一级默认展开，其他层级默认不展开
-    const isExpanded = level === 0 ? 
-      expandedFolders[fullPath] !== false : // 第一级默认展开
-      expandedFolders[fullPath] === true;  // 非第一级默认不展开
-
-    if (node.type === 'file') {
+    if (node.type === "file") {
       return (
-        <div 
-          key={fullPath} 
-          className="flex items-center py-1 hover:bg-gray-50 cursor-pointer" 
-          style={{ paddingLeft: indent }}
+        <div
+          key={fullPath}
+          className="flex items-center py-2 px-2 hover:bg-gray-50 cursor-pointer rounded-md transition-colors duration-150"
+          style={{ paddingLeft: indent + 8 }}
           onClick={() => handleFileClick(fullPath)}
         >
-          <DocumentTextIcon className="h-4 w-4 text-gray-400 mr-2" />
-          <span className="text-sm hover:text-blue-600">{node.name}</span>
+          <DocumentTextIcon className="h-4 w-4 text-gray-400 mr-2 flex-shrink-0" />
+          <span className="text-sm text-gray-700 hover:text-blue-600 truncate">
+            {node.name}
+          </span>
         </div>
       );
     }
 
     return (
       <div key={fullPath}>
-        <div 
-          className="flex items-center py-1 hover:bg-gray-50 cursor-pointer" 
-          style={{ paddingLeft: indent }}
+        <div
+          className="flex items-center py-2 px-2 hover:bg-gray-50 cursor-pointer rounded-md transition-colors duration-150"
+          style={{ paddingLeft: indent + 8 }}
           onClick={() => handleFolderClick(fullPath)}
         >
-          <FolderIcon className="h-4 w-4 text-blue-500 mr-2" />
-          <span className="text-sm font-medium">{node.name}</span>
-          <span className="ml-2 text-xs text-gray-400">
-            {isExpanded ? '▼' : '►'}
+          {isExpanded ? (
+            <ChevronDownIcon className="h-4 w-4 text-gray-500 mr-1 flex-shrink-0" />
+          ) : (
+            <ChevronRightIcon className="h-4 w-4 text-gray-500 mr-1 flex-shrink-0" />
+          )}
+          <FolderIcon className="h-4 w-4 text-blue-500 mr-2 flex-shrink-0" />
+          <span className="text-sm font-medium text-gray-700 truncate">
+            {node.name}
           </span>
         </div>
-        {isExpanded && node.children?.map((child) => 
-          renderFileTree(child, level + 1, fullPath)
-        )}
+        {isExpanded &&
+          node.children?.map((child) =>
+            renderFileTree(child, level + 1, fullPath)
+          )}
       </div>
     );
-  }
+  };
 
   if (isLoading) {
     return (
@@ -296,7 +314,7 @@ export const ProjectDetail: React.FC = () => {
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
         </div>
       </div>
-    )
+    );
   }
 
   if (!project) {
@@ -306,7 +324,7 @@ export const ProjectDetail: React.FC = () => {
           <p className="text-gray-500">项目未找到</p>
         </div>
       </div>
-    )
+    );
   }
 
   if (selectedFile && fileContent) {
@@ -315,8 +333,8 @@ export const ProjectDetail: React.FC = () => {
         <div className="mb-4">
           <button
             onClick={() => {
-              setSelectedFile(null)
-              setFileContent(null)
+              setSelectedFile(null);
+              setFileContent(null);
             }}
             className="text-blue-600 hover:text-blue-800 text-sm"
           >
@@ -324,18 +342,18 @@ export const ProjectDetail: React.FC = () => {
           </button>
         </div>
         <FileViewer
-          fileName={selectedFile.split('/').pop() || ''}
+          fileName={selectedFile.split("/").pop() || ""}
           fileContent={fileContent}
           filePath={selectedFile}
           projectRoot={decodedPath}
           onClose={() => {
-            setSelectedFile(null)
-            setFileContent(null)
+            setSelectedFile(null);
+            setFileContent(null);
           }}
           onFileContentUpdate={(newContent) => setFileContent(newContent)}
         />
       </div>
-    )
+    );
   }
 
   // 文件预览模式
@@ -351,28 +369,32 @@ export const ProjectDetail: React.FC = () => {
           </button>
         </div>
         <FileViewer
-          fileName={previewFile.path.split('/').pop() || ''}
+          fileName={previewFile.path.split("/").pop() || ""}
           fileContent={previewFile.content}
           filePath={previewFile.path}
           projectRoot={decodedPath}
           onClose={handleClosePreview}
-          onFileContentUpdate={(newContent) => setPreviewFile({
-            ...previewFile,
-            content: newContent
-          })}
+          onFileContentUpdate={(newContent) =>
+            setPreviewFile({
+              ...previewFile,
+              content: newContent,
+            })
+          }
         />
       </div>
-    )
+    );
   }
 
   return (
     <div className="p-6">
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">{project.info?.name}</h1>
+          <h1 className="text-3xl font-bold text-gray-900">
+            {project.info?.name}
+          </h1>
           <p className="mt-1 text-gray-600">{project.info?.path}</p>
         </div>
-        
+
         <div className="flex space-x-3">
           <button
             onClick={handleUpdateRepository}
@@ -380,7 +402,7 @@ export const ProjectDetail: React.FC = () => {
             className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <ArrowPathIcon className="h-4 w-4 mr-2" />
-            {isUpdating ? '更新中...' : '更新仓库'}
+            {isUpdating ? "更新中..." : "更新仓库"}
           </button>
           <button
             onClick={() => setShowDeleteConfirm(true)}
@@ -388,7 +410,7 @@ export const ProjectDetail: React.FC = () => {
             className="flex items-center px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <TrashIcon className="h-4 w-4 mr-2" />
-            {isDeleting ? '删除中...' : '删除项目'}
+            {isDeleting ? "删除中..." : "删除项目"}
           </button>
         </div>
       </div>
@@ -398,7 +420,8 @@ export const ProjectDetail: React.FC = () => {
           <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
             <h3 className="text-lg font-semibold mb-4">确认删除项目</h3>
             <p className="text-gray-600 mb-4">
-              确定要删除 <span className="font-bold">{project.info?.name}</span> 吗？
+              确定要删除 <span className="font-bold">{project.info?.name}</span>{" "}
+              吗？
             </p>
             <p className="text-sm text-gray-500 mb-6">
               这将同时删除：
@@ -434,13 +457,16 @@ export const ProjectDetail: React.FC = () => {
                 <span className="font-medium">仓库:</span> {project.info?.name}
               </div>
               <div>
-                <span className="font-medium">分支:</span> {project.info?.current_branch}
+                <span className="font-medium">分支:</span>{" "}
+                {project.info?.current_branch}
               </div>
               <div>
-                <span className="font-medium">提交数:</span> {project.info?.commits_count}
+                <span className="font-medium">提交数:</span>{" "}
+                {project.info?.commits_count}
               </div>
               <div>
-                <span className="font-medium">远程:</span> {project.info?.remote_url || '无'}
+                <span className="font-medium">远程:</span>{" "}
+                {project.info?.remote_url || "无"}
               </div>
             </div>
           </div>
@@ -457,12 +483,12 @@ export const ProjectDetail: React.FC = () => {
             </div>
           </div>
 
-          {analysisMode === 'simple' ? (
+          {analysisMode === "simple" ? (
             <div className="bg-white rounded-lg shadow p-6">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-semibold">AI分析</h2>
                 <button
-                  onClick={() => setAnalysisMode('smart')}
+                  onClick={() => setAnalysisMode("smart")}
                   className="flex items-center px-3 py-1 bg-blue-100 text-blue-700 rounded-md hover:bg-blue-200 text-sm"
                 >
                   <LightBulbIcon className="h-4 w-4 mr-1" />
@@ -482,18 +508,20 @@ export const ProjectDetail: React.FC = () => {
                     rows={3}
                   />
                 </div>
-                
+
                 <button
                   onClick={handleAnalyze}
                   disabled={isAnalyzing}
                   className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
                 >
-                  {isAnalyzing ? '分析中...' : '分析'}
+                  {isAnalyzing ? "分析中..." : "分析"}
                 </button>
 
                 {analysisResult && (
                   <div className="mt-4 p-4 bg-gray-50 rounded-lg">
-                    <h3 className="text-sm font-medium text-gray-900 mb-2">分析结果</h3>
+                    <h3 className="text-sm font-medium text-gray-900 mb-2">
+                      分析结果
+                    </h3>
                     <div className="text-sm text-gray-700 whitespace-pre-wrap">
                       {analysisResult}
                     </div>
@@ -509,13 +537,13 @@ export const ProjectDetail: React.FC = () => {
                   智能对话分析
                 </h2>
                 <button
-                  onClick={() => setAnalysisMode('simple')}
+                  onClick={() => setAnalysisMode("simple")}
                   className="flex items-center px-3 py-1 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 text-sm"
                 >
                   ← 返回简单分析
                 </button>
               </div>
-              <div className="border rounded-lg" style={{ height: '400px' }}>
+              <div className="border rounded-lg" style={{ height: "400px" }}>
                 <SmartChatPanel
                   projectPath={decodedPath}
                   fileTree={project?.file_tree}
@@ -537,13 +565,15 @@ export const ProjectDetail: React.FC = () => {
                 className="w-full flex items-center justify-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50"
               >
                 <DocumentChartBarIcon className="h-4 w-4 mr-2" />
-                {isGeneratingArchitecture ? '生成中...' : '生成架构文档'}
+                {isGeneratingArchitecture ? "生成中..." : "生成架构文档"}
               </button>
             </div>
-            
+
             {architectureResult && (
               <div className="mt-4 p-3 bg-green-50 rounded-lg">
-                <h3 className="text-sm font-medium text-green-900 mb-1">架构文档结果</h3>
+                <h3 className="text-sm font-medium text-green-900 mb-1">
+                  架构文档结果
+                </h3>
                 <div className="text-sm text-green-700 whitespace-pre-wrap">
                   {architectureResult}
                 </div>
@@ -555,10 +585,16 @@ export const ProjectDetail: React.FC = () => {
             <h2 className="text-lg font-semibold mb-4">最近提交</h2>
             <div className="space-y-3">
               {project.recent_commits?.slice(0, 5).map((commit) => (
-                <div key={commit.hash} className="border-l-4 border-blue-500 pl-3">
-                  <p className="text-sm font-medium text-gray-900">{commit.message}</p>
+                <div
+                  key={commit.hash}
+                  className="border-l-4 border-blue-500 pl-3"
+                >
+                  <p className="text-sm font-medium text-gray-900">
+                    {commit.message}
+                  </p>
                   <p className="text-xs text-gray-500">
-                    {commit.author} • {new Date(commit.date).toLocaleDateString()}
+                    {commit.author} •{" "}
+                    {new Date(commit.date).toLocaleDateString()}
                   </p>
                 </div>
               ))}
@@ -569,12 +605,23 @@ export const ProjectDetail: React.FC = () => {
             <h2 className="text-lg font-semibold mb-4">分支</h2>
             <div className="space-y-2">
               {project.branches?.map((branch) => (
-                <div key={branch.name} className="flex items-center justify-between">
-                  <span className={`text-sm ${branch.is_active ? 'font-bold text-blue-600' : 'text-gray-700'}`}>
+                <div
+                  key={branch.name}
+                  className="flex items-center justify-between"
+                >
+                  <span
+                    className={`text-sm ${
+                      branch.is_active
+                        ? "font-bold text-blue-600"
+                        : "text-gray-700"
+                    }`}
+                  >
                     {branch.name}
                   </span>
                   {branch.is_active && (
-                    <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">活跃</span>
+                    <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                      活跃
+                    </span>
                   )}
                 </div>
               ))}
@@ -583,5 +630,5 @@ export const ProjectDetail: React.FC = () => {
         </div>
       </div>
     </div>
-  )
-}
+  );
+};
