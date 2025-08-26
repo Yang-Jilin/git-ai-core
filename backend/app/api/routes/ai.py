@@ -3,7 +3,7 @@ from pydantic import BaseModel, Field
 from typing import List, Dict, Any, Optional
 import time
 from app.core.ai_manager import AIManager
-from app.core.smart_conversation_manager import smart_conversation_manager
+from app.core.advanced_smart_conversation_manager import advanced_smart_conversation_manager
 
 router = APIRouter()
 
@@ -252,17 +252,18 @@ async def start_smart_conversation(request: SmartConversationRequest) -> Dict[st
 async def smart_chat(request: SmartConversationRequest) -> Dict[str, Any]:
     """智能对话聊天"""
     try:
-        # 使用智能对话管理器处理请求
-        result = await smart_conversation_manager.process_smart_chat(
+        # 使用高级智能对话管理器处理请求
+        result = await advanced_smart_conversation_manager.process_smart_chat(
             request.conversation_id or f"conv_{int(time.time() * 1000)}",
             request.project_path,
-            request.message
+            request.message or ""
         )
         
         return {
             "response": result["response"],
             "conversation_id": result["conversation_id"],
-            "tool_calls": result["tool_calls"]
+            "tool_calls": result["tool_calls"],
+            "analysis_context": result.get("analysis_context", {})
         }
         
     except Exception as e:
