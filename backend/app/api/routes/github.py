@@ -2,8 +2,10 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import List, Dict, Optional
 import asyncio
+from datetime import datetime, timedelta
 from app.services.github_service import GitHubService
 from app.core.github_config import GitHubConfig
+from app.core.github_recommendation_db import github_recommendation_db
 
 router = APIRouter()
 github_config = GitHubConfig()
@@ -23,6 +25,19 @@ class SearchRequest(BaseModel):
     sort: Optional[str] = "stars"
     order: Optional[str] = "desc"
     per_page: Optional[int] = 10
+
+class EnhancedSearchRequest(BaseModel):
+    query: str
+    language: Optional[str] = None
+    sort: Optional[str] = None  # "stars-asc", "stars-desc"
+    updated_after: Optional[str] = None  # "7d", "30d", "90d"
+    per_page: Optional[int] = 20
+
+class RecordActionRequest(BaseModel):
+    repo_full_name: str
+    action_type: str
+    search_query: Optional[str] = None
+    duration_seconds: Optional[int] = None
 
 @router.on_event("startup")
 async def startup_event():
@@ -132,3 +147,68 @@ async def get_github_status():
         "trending_count": len(trending_cache),
         "access_token": access_token if has_token else None
     }
+
+@router.post("/github/enhanced-search")
+async def enhanced_search_repos(request: EnhancedSearchRequest):
+    """增强搜索GitHub仓库（支持高级筛选）"""
+    access_token = github_config.get_access_token()
+    if not access_token or not access_token.strip():
+        raise HTTPException(status_code=400, detail="请先配置GitHub access token")
+    
+    service = GitHubService(access_token)
+    try:
+        # 处理更新时间参数
+        updated_after = None
+        if request.updated_after:
+            if request.updated_after == "7d":
+                updated_after = (datetime.now() - timedelta(days=7)).strftime("%Y-%m-%d")
+            elif request.updated_after == "30d":
+                updated_after = (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d")
+            elif request.updated_after == "90d":
+                updated_after = (datetime.now() - timedelta(days=90)).strftime("%Y-%m-%d")
+            else:
+                updated_after = request.updated_after  # 允许自定义日期
+        
+        repos = await service.enhanced_search_repos(
+            query=request.query,
+            language=request.language,
+            updated_after=updated_after,
+            sort=request.sort,
+            per_page=request.per_page or 20
+        )
+        return {"repositories": repos}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"增强搜索失败: {str(e)}")
+
+@router.get("/github/recommendations")
+async def get_personalized_recommendations(user_id: str = "default", limit: int = 10):
+    """获取个性化推荐"""
+    access_token = github_config.get_access_token()
+    if not access_token or not access_token.strip():
+        raise HTTPException(status_code=400, detail="请先配置GitHub access token")
+    
+    service = GitHubService(access_token)
+    try:
+        recommendations = await service.get_personalized_recommendations(user_id, limit)
+        return {"repositories": recommendations}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取推荐失败: {str(e)}")
+
+@router.post("/github/record-action")
+async def record_user_action(request: RecordActionRequest):
+    """记录用户行为"""
+    try:
+        success = github_recommendation_db.record_user_action(
+            "default", 
+            request.repo_full_name, 
+            request.action_type, 
+            request.search_query, 
+            request.duration_seconds
+        )
+        return {"success": success}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"记录行为失败: {str(e)}")

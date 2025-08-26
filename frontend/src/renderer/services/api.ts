@@ -237,5 +237,38 @@ export const api = {
   async getGitHubStatus() {
     const response = await apiClient.get('/api/github/status')
     return response.data
+  },
+
+  // 增强搜索功能
+  async enhancedSearchGitHubRepos(query: string, language?: string, 
+                                updatedAfter?: string, sort?: string, perPage?: number) {
+    const response = await apiClient.post('/api/github/enhanced-search', {
+      query,
+      language,
+      updated_after: updatedAfter,
+      sort,
+      per_page: perPage
+    })
+    return response.data
+  },
+
+  // 个性化推荐
+  async getGitHubRecommendations(userId: string = "default", limit: number = 10) {
+    const response = await apiClient.get('/api/github/recommendations', {
+      params: { user_id: userId, limit }
+    })
+    return response.data
+  },
+
+  // 记录用户行为
+  async recordGitHubAction(repoFullName: string, actionType: string, 
+                         searchQuery?: string, durationSeconds?: number) {
+    const response = await apiClient.post('/api/github/record-action', {
+      repo_full_name: repoFullName,
+      action_type: actionType,
+      search_query: searchQuery,
+      duration_seconds: durationSeconds
+    })
+    return response.data
   }
 }

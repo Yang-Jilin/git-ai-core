@@ -6,7 +6,9 @@ import {
   StarIcon, 
   CodeBracketIcon,
   CalendarIcon,
-  MagnifyingGlassIcon
+  MagnifyingGlassIcon,
+  FunnelIcon,
+  XMarkIcon
 } from '@heroicons/react/24/outline'
 import { api } from '../../services/api'
 
@@ -34,6 +36,12 @@ export const GitHubRecommendations: React.FC = () => {
   const [showDetailModal, setShowDetailModal] = useState(false)
   const [showCloneModal, setShowCloneModal] = useState(false)
   const [clonePath, setClonePath] = useState('')
+  const [showFilters, setShowFilters] = useState(false)
+  const [filters, setFilters] = useState({
+    language: '',
+    sort: '', // 排序方式：''（默认）, 'stars-asc', 'stars-desc'
+    updatedAfter: ''
+  })
 
   // 获取热门项目
   const { data: trendingData, isLoading: isLoadingTrending } = useQuery({
@@ -42,7 +50,7 @@ export const GitHubRecommendations: React.FC = () => {
     enabled: true
   })
 
-  // 搜索项目
+  // 基础搜索项目
   const searchMutation = useMutation({
     mutationFn: (query: string) => api.searchGitHubRepos(query),
     onSuccess: (data) => {
@@ -50,6 +58,37 @@ export const GitHubRecommendations: React.FC = () => {
     },
     onError: (error: any) => {
       toast.error(error.response?.data?.detail || '搜索失败')
+    }
+  })
+
+  // 增强搜索项目
+  const enhancedSearchMutation = useMutation({
+    mutationFn: () => api.enhancedSearchGitHubRepos(
+      searchQuery,
+      filters.language,
+      filters.updatedAfter,
+      filters.sort
+    ),
+    onSuccess: (data) => {
+      toast.success(`找到 ${data.repositories.length} 个项目`)
+      // 记录用户搜索行为
+      data.repositories.forEach((repo: Repository) => {
+        api.recordGitHubAction(repo.full_name, 'search', searchQuery)
+      })
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.detail || '搜索失败')
+    }
+  })
+
+  // 获取个性化推荐
+  const recommendationMutation = useMutation({
+    mutationFn: () => api.getGitHubRecommendations("default", 10),
+    onSuccess: (data) => {
+      toast.success(`为您推荐了 ${data.repositories.length} 个项目`)
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.detail || '推荐失败')
     }
   })
 
@@ -86,8 +125,37 @@ export const GitHubRecommendations: React.FC = () => {
       toast.error('请输入搜索关键词')
       return
     }
-    searchMutation.mutate(searchQuery.trim())
+    
+    if (showFilters && (filters.language || filters.sort || filters.updatedAfter)) {
+      // 使用增强搜索
+      enhancedSearchMutation.mutate()
+    } else {
+      // 使用基础搜索
+      searchMutation.mutate(searchQuery.trim())
+    }
   }
+
+  const handleEnhancedSearch = () => {
+    if (!searchQuery.trim()) {
+      toast.error('请输入搜索关键词')
+      return
+    }
+    enhancedSearchMutation.mutate()
+  }
+
+  const handleFilterChange = (key: keyof typeof filters, value: string) => {
+    setFilters(prev => ({ ...prev, [key]: value }))
+  }
+
+  const clearFilters = () => {
+    setFilters({
+      language: '',
+      sort: '',
+      updatedAfter: ''
+    })
+  }
+
+  const hasActiveFilters = filters.language || filters.sort || filters.updatedAfter
 
   const handleViewDetails = (repo: Repository) => {
     const [owner, repoName] = repo.full_name.split('/')
@@ -108,7 +176,7 @@ export const GitHubRecommendations: React.FC = () => {
     })
   }
 
-  const repositories = searchMutation.data?.repositories || trendingData?.repositories || []
+  const repositories = recommendationMutation.data?.repositories || enhancedSearchMutation.data?.repositories || searchMutation.data?.repositories || trendingData?.repositories || []
 
   const formatNumber = (num: number): string => {
     if (num >= 1000) {
@@ -121,11 +189,39 @@ export const GitHubRecommendations: React.FC = () => {
     return new Date(dateString).toLocaleDateString('zh-CN')
   }
 
+  // 常用编程语言选项
+  const programmingLanguages = [
+    'JavaScript', 'TypeScript', 'Python', 'Java', 'C++', 'C#', 'PHP', 'Ruby',
+    'Go', 'Rust', 'Swift', 'Kotlin', 'Dart', 'Scala', 'HTML', 'CSS', 'Shell',
+    'Vue', 'React', 'Angular', 'Svelte', 'R', 'Lua', 'Perl', 'Haskell'
+  ]
+
   return (
     <div className="p-6">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">GitHub项目推荐</h1>
-        <p className="mt-2 text-gray-600">发现热门的GitHub项目</p>
+      <div className="mb-8 flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">GitHub项目推荐</h1>
+          <p className="mt-2 text-gray-600">发现热门的GitHub项目</p>
+        </div>
+        <button
+          onClick={() => recommendationMutation.mutate()}
+          disabled={recommendationMutation.isPending}
+          className="px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 flex items-center gap-2"
+        >
+          {recommendationMutation.isPending ? (
+            <>
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+              推送中...
+            </>
+          ) : (
+            <>
+              <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+              智能推送
+            </>
+          )}
+        </button>
       </div>
 
       {/* 搜索框 */}
@@ -143,12 +239,116 @@ export const GitHubRecommendations: React.FC = () => {
           </div>
           <button
             type="submit"
-            disabled={searchMutation.isPending}
+            disabled={searchMutation.isPending || enhancedSearchMutation.isPending}
             className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
           >
-            {searchMutation.isPending ? '搜索中...' : '搜索'}
+            {searchMutation.isPending || enhancedSearchMutation.isPending ? '搜索中...' : '搜索'}
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowFilters(!showFilters)}
+            className={`px-4 py-3 rounded-lg flex items-center gap-2 ${
+              showFilters || hasActiveFilters 
+                ? 'bg-blue-100 text-blue-700 border border-blue-300' 
+                : 'bg-gray-100 text-gray-700 border border-gray-300'
+            } hover:bg-blue-50`}
+          >
+            <FunnelIcon className="h-5 w-5" />
+            筛选
+            {hasActiveFilters && (
+              <span className="bg-blue-600 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                !
+              </span>
+            )}
           </button>
         </form>
+
+        {/* 筛选面板 */}
+        {showFilters && (
+          <div className="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-medium text-gray-700">高级筛选</h3>
+              <button
+                onClick={() => setShowFilters(false)}
+                className="p-1 text-gray-400 hover:text-gray-600"
+              >
+                <XMarkIcon className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              {/* 编程语言筛选 */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  编程语言
+                </label>
+                <select
+                  value={filters.language}
+                  onChange={(e) => handleFilterChange('language', e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                >
+                  <option value="">所有语言</option>
+                  {programmingLanguages.map(lang => (
+                    <option key={lang} value={lang}>{lang}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* 排序方式 */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  排序方式
+                </label>
+                <select
+                  value={filters.sort}
+                  onChange={(e) => handleFilterChange('sort', e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                >
+                  <option value="">默认排序</option>
+                  <option value="stars-asc">星标数升序</option>
+                  <option value="stars-desc">星标数降序</option>
+                </select>
+              </div>
+
+              {/* 占位符，保持布局 */}
+              <div></div>
+
+              {/* 更新时间筛选 */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  更新时间
+                </label>
+                <select
+                  value={filters.updatedAfter}
+                  onChange={(e) => handleFilterChange('updatedAfter', e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                >
+                  <option value="">全部时间</option>
+                  <option value="7d">最近7天</option>
+                  <option value="30d">最近30天</option>
+                  <option value="90d">最近90天</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 mt-4">
+              <button
+                onClick={clearFilters}
+                disabled={!hasActiveFilters}
+                className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                清除筛选
+              </button>
+              <button
+                onClick={handleEnhancedSearch}
+                disabled={enhancedSearchMutation.isPending || !searchQuery.trim()}
+                className="px-4 py-2 bg-green-600 text-white text-sm rounded-md hover:bg-green-700 disabled:opacity-50"
+              >
+                {enhancedSearchMutation.isPending ? '搜索中...' : '应用筛选'}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* 项目列表 */}
