@@ -187,3 +187,4 @@ logs/
 # AI Configuration files
 backend/app/api/AI-Config.json
 backend/AI-Config.json
+backend/github-config.json

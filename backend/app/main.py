@@ -6,7 +6,7 @@ import os
 from contextlib import asynccontextmanager
 import logging
 
-from app.api.routes import git, ai, mcp, projects, config
+from app.api.routes import git, ai, mcp, projects, config, github
 from app.core.config import settings
 from app.core.git_manager import GitManager
 from app.core.ai_manager import AIManager
@@ -59,6 +59,7 @@ app.include_router(ai.router, prefix="/api/ai", tags=["ai"])
 app.include_router(mcp.router, prefix="/api/mcp", tags=["mcp"])
 app.include_router(projects.router, prefix="/api/projects", tags=["projects"])
 app.include_router(config.router, prefix="/api", tags=["config"])
+app.include_router(github.router, prefix="/api", tags=["github"])
 
 # WebSocket endpoint for real-time communication
 class ConnectionManager:

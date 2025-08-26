@@ -7,6 +7,8 @@ import { Dashboard } from './components/pages/Dashboard'
 import { Projects } from './components/pages/Projects'
 import { AISettings } from './components/pages/AISettings'
 import { MCPSettings } from './components/pages/MCPSettings'
+import { GitHubSettings } from './components/pages/GitHubSettings'
+import { GitHubRecommendations } from './components/pages/GitHubRecommendations'
 import { ProjectDetail } from './components/pages/ProjectDetail'
 import './styles/App.css'
 
@@ -26,7 +28,9 @@ function App() {
                 <Route path="/projects" element={<Projects />} />
                 <Route path="/projects/:path" element={<ProjectDetail />} />
                 <Route path="/ai-settings" element={<AISettings />} />
+                <Route path="/github-settings" element={<GitHubSettings />} />
                 <Route path="/mcp-settings" element={<MCPSettings />} />
+                <Route path="/github-recommendations" element={<GitHubRecommendations />} />
               </Routes>
             </main>
           </div>

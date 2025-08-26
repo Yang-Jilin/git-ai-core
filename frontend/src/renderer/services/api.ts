@@ -191,5 +191,51 @@ export const api = {
       conversation_id: conversationId
     })
     return response.data
+  },
+
+  // GitHub operations
+  async getGitHubTrending() {
+    const response = await apiClient.get('/api/github/trending')
+    return response.data
+  },
+
+  async searchGitHubRepos(query: string, language?: string, sort?: string, order?: string, perPage?: number) {
+    const response = await apiClient.post('/api/github/search', {
+      query,
+      language,
+      sort,
+      order,
+      per_page: perPage
+    })
+    return response.data
+  },
+
+  async getGitHubRepoDetails(owner: string, repo: string) {
+    const response = await apiClient.get(`/api/github/repo/${owner}/${repo}`)
+    return response.data
+  },
+
+  async testGitHubConnection(accessToken: string) {
+    const response = await apiClient.post('/api/github/test-connection', {
+      access_token: accessToken
+    })
+    return response.data
+  },
+
+  async saveGitHubConfig(accessToken: string) {
+    const response = await apiClient.post('/api/github/save-config', {
+      access_token: accessToken
+    })
+    return response.data
+  },
+
+  async getGitHubConfig() {
+    const response = await apiClient.get('/api/github/config')
+    return response.data
+  },
+
+  async getGitHubStatus() {
+    const response = await apiClient.get('/api/github/status')
+    return response.data
   }
 }

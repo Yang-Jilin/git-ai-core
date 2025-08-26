@@ -11,7 +11,9 @@ import {
 const navigation = [
   { name: 'Dashboard', href: '/', icon: HomeIcon },
   { name: 'Projects', href: '/projects', icon: FolderIcon },
+  { name: 'GitHub Recommendations', href: '/github-recommendations', icon: CodeBracketIcon },
   { name: 'AI Settings', href: '/ai-settings', icon: CpuChipIcon },
+  { name: 'GitHub Settings', href: '/github-settings', icon: CogIcon },
   { name: 'MCP Settings', href: '/mcp-settings', icon: CogIcon },
 ]
 
