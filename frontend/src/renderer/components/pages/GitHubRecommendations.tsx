@@ -1,264 +1,299 @@
-import React, { useState, useEffect } from 'react'
-import { useQuery, useMutation } from '@tanstack/react-query'
-import { toast } from 'react-hot-toast'
-import { Link } from 'react-router-dom'
-import { 
-  StarIcon, 
+import React, { useState, useEffect } from "react";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { toast } from "react-hot-toast";
+import { Link } from "react-router-dom";
+import {
+  StarIcon,
   CodeBracketIcon,
   CalendarIcon,
   MagnifyingGlassIcon,
   FunnelIcon,
   XMarkIcon,
-  TrashIcon
-} from '@heroicons/react/24/outline'
-import { api } from '../../services/api'
-import { 
-  usePersistedState, 
-  clearPersistedState, 
+  TrashIcon,
+} from "@heroicons/react/24/outline";
+import { api } from "../../services/api";
+import {
+  usePersistedState,
+  clearPersistedState,
   GITHUB_STORAGE_KEYS,
   saveSearchResults,
   getSearchResults,
-  SearchResultData
-} from '../../hooks/usePersistedState'
+  SearchResultData,
+} from "../../hooks/usePersistedState";
 
 interface Repository {
-  id: number
-  name: string
-  full_name: string
+  id: number;
+  name: string;
+  full_name: string;
   owner: {
-    login: string
-    avatar_url: string
-  }
-  html_url: string
-  description: string
-  stargazers_count: number
-  forks_count: number
-  watchers_count: number
-  language: string
-  updated_at: string
-  readme?: string
+    login: string;
+    avatar_url: string;
+  };
+  html_url: string;
+  description: string;
+  stargazers_count: number;
+  forks_count: number;
+  watchers_count: number;
+  language: string;
+  updated_at: string;
+  readme?: string;
 }
 
 export const GitHubRecommendations: React.FC = () => {
-  const [searchQuery, setSearchQuery] = usePersistedState(GITHUB_STORAGE_KEYS.SEARCH_QUERY, '')
-  const [selectedRepo, setSelectedRepo] = useState<Repository | null>(null)
-  const [showDetailModal, setShowDetailModal] = useState(false)
-  const [showCloneModal, setShowCloneModal] = useState(false)
-  const [clonePath, setClonePath] = useState('')
-  const [showFilters, setShowFilters] = usePersistedState(GITHUB_STORAGE_KEYS.SHOW_FILTERS, false)
+  const [searchQuery, setSearchQuery] = usePersistedState(
+    GITHUB_STORAGE_KEYS.SEARCH_QUERY,
+    ""
+  );
+  const [selectedRepo, setSelectedRepo] = useState<Repository | null>(null);
+  const [showDetailModal, setShowDetailModal] = useState(false);
+  const [showCloneModal, setShowCloneModal] = useState(false);
+  const [clonePath, setClonePath] = useState("");
+  const [showFilters, setShowFilters] = usePersistedState(
+    GITHUB_STORAGE_KEYS.SHOW_FILTERS,
+    false
+  );
   const [filters, setFilters] = usePersistedState(GITHUB_STORAGE_KEYS.FILTERS, {
-    language: '',
-    sort: '', // 排序方式：''（默认）, 'stars-asc', 'stars-desc'
-    updatedAfter: ''
-  })
-  const [savedSearchResults, setSavedSearchResults] = useState<SearchResultData | null>(null)
+    language: "",
+    sort: "", // 排序方式：''（默认）, 'stars-asc', 'stars-desc'
+    updatedAfter: "",
+  });
+  const [savedSearchResults, setSavedSearchResults] =
+    useState<SearchResultData | null>(null);
 
   // 组件挂载时检查保存的搜索结果
   useEffect(() => {
-    const savedResults = getSearchResults(GITHUB_STORAGE_KEYS.SEARCH_RESULTS)
+    const savedResults = getSearchResults(GITHUB_STORAGE_KEYS.SEARCH_RESULTS);
     if (savedResults) {
-      setSavedSearchResults(savedResults)
-      toast.success('已恢复之前的搜索结果')
+      setSavedSearchResults(savedResults);
+      toast.success("已恢复之前的搜索结果");
     }
-  }, [])
+  }, []);
 
   // 获取热门项目
   const { data: trendingData, isLoading: isLoadingTrending } = useQuery({
-    queryKey: ['github-trending'],
+    queryKey: ["github-trending"],
     queryFn: () => api.getGitHubTrending(),
-    enabled: true
-  })
+    enabled: true,
+  });
 
   // 基础搜索项目
   const searchMutation = useMutation({
     mutationFn: (query: string) => api.searchGitHubRepos(query),
     onSuccess: (data) => {
-      toast.success(`找到 ${data.repositories.length} 个项目`)
+      toast.success(`找到 ${data.repositories.length} 个项目`);
       // 保存搜索结果
       saveSearchResults(GITHUB_STORAGE_KEYS.SEARCH_RESULTS, {
         repositories: data.repositories,
-        searchType: 'basic',
+        searchType: "basic",
         timestamp: Date.now(),
-        query: searchQuery
-      })
+        query: searchQuery,
+      });
     },
     onError: (error: any) => {
-      toast.error(error.response?.data?.detail || '搜索失败')
-    }
-  })
+      toast.error(error.response?.data?.detail || "搜索失败");
+    },
+  });
 
   // 增强搜索项目
   const enhancedSearchMutation = useMutation({
-    mutationFn: () => api.enhancedSearchGitHubRepos(
-      searchQuery,
-      filters.language,
-      filters.updatedAfter,
-      filters.sort
-    ),
+    mutationFn: () =>
+      api.enhancedSearchGitHubRepos(
+        searchQuery,
+        filters.language,
+        filters.updatedAfter,
+        filters.sort
+      ),
     onSuccess: (data) => {
-      toast.success(`找到 ${data.repositories.length} 个项目`)
+      toast.success(`找到 ${data.repositories.length} 个项目`);
       // 记录用户搜索行为
       data.repositories.forEach((repo: Repository) => {
-        api.recordGitHubAction(repo.full_name, 'search', searchQuery)
-      })
+        api.recordGitHubAction(repo.full_name, "search", searchQuery);
+      });
       // 保存搜索结果
       saveSearchResults(GITHUB_STORAGE_KEYS.SEARCH_RESULTS, {
         repositories: data.repositories,
-        searchType: 'enhanced',
+        searchType: "enhanced",
         timestamp: Date.now(),
         query: searchQuery,
-        filters: filters
-      })
+        filters: filters,
+      });
     },
     onError: (error: any) => {
-      toast.error(error.response?.data?.detail || '搜索失败')
-    }
-  })
+      toast.error(error.response?.data?.detail || "搜索失败");
+    },
+  });
 
   // 获取个性化推荐
   const recommendationMutation = useMutation({
     mutationFn: () => api.getGitHubRecommendations("default", 10),
     onSuccess: (data) => {
-      toast.success(`为您推荐了 ${data.repositories.length} 个项目`)
+      toast.success(`为您推荐了 ${data.repositories.length} 个项目`);
       // 保存推荐结果
       saveSearchResults(GITHUB_STORAGE_KEYS.SEARCH_RESULTS, {
         repositories: data.repositories,
-        searchType: 'recommendation',
-        timestamp: Date.now()
-      })
+        searchType: "recommendation",
+        timestamp: Date.now(),
+      });
     },
     onError: (error: any) => {
-      toast.error(error.response?.data?.detail || '推荐失败')
-    }
-  })
+      toast.error(error.response?.data?.detail || "推荐失败");
+    },
+  });
 
   // 获取项目详情
   const detailMutation = useMutation({
-    mutationFn: ({ owner, repo }: { owner: string; repo: string }) => 
+    mutationFn: ({ owner, repo }: { owner: string; repo: string }) =>
       api.getGitHubRepoDetails(owner, repo),
     onSuccess: (data) => {
-      setSelectedRepo(data)
-      setShowDetailModal(true)
+      setSelectedRepo(data);
+      setShowDetailModal(true);
     },
     onError: (error: any) => {
-      toast.error(error.response?.data?.detail || '获取详情失败')
-    }
-  })
+      toast.error(error.response?.data?.detail || "获取详情失败");
+    },
+  });
 
   // 克隆项目
   const cloneMutation = useMutation({
-    mutationFn: ({ url, path }: { url: string; path?: string }) => 
+    mutationFn: ({ url, path }: { url: string; path?: string }) =>
       api.cloneRepository(url, path),
     onSuccess: () => {
-      toast.success('项目克隆成功！')
-      setShowCloneModal(false)
-      setClonePath('')
+      toast.success("项目克隆成功！");
+      setShowCloneModal(false);
+      setClonePath("");
     },
     onError: (error: any) => {
-      toast.error(error.response?.data?.detail || '克隆失败')
-    }
-  })
+      toast.error(error.response?.data?.detail || "克隆失败");
+    },
+  });
 
   const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault()
+    e.preventDefault();
     if (!searchQuery.trim()) {
-      toast.error('请输入搜索关键词')
-      return
+      toast.error("请输入搜索关键词");
+      return;
     }
-    
-    if (showFilters && (filters.language || filters.sort || filters.updatedAfter)) {
+
+    if (
+      showFilters &&
+      (filters.language || filters.sort || filters.updatedAfter)
+    ) {
       // 使用增强搜索
-      enhancedSearchMutation.mutate()
+      enhancedSearchMutation.mutate();
     } else {
       // 使用基础搜索
-      searchMutation.mutate(searchQuery.trim())
+      searchMutation.mutate(searchQuery.trim());
     }
-  }
+  };
 
   const handleEnhancedSearch = () => {
     if (!searchQuery.trim()) {
-      toast.error('请输入搜索关键词')
-      return
+      toast.error("请输入搜索关键词");
+      return;
     }
-    enhancedSearchMutation.mutate()
-  }
+    enhancedSearchMutation.mutate();
+  };
 
   const handleFilterChange = (key: keyof typeof filters, value: string) => {
-    setFilters(prev => ({ ...prev, [key]: value }))
-  }
+    setFilters((prev) => ({ ...prev, [key]: value }));
+  };
 
   const clearFilters = () => {
     setFilters({
-      language: '',
-      sort: '',
-      updatedAfter: ''
-    })
-  }
+      language: "",
+      sort: "",
+      updatedAfter: "",
+    });
+  };
 
-  const hasActiveFilters = filters.language || filters.sort || filters.updatedAfter
+  const hasActiveFilters =
+    filters.language || filters.sort || filters.updatedAfter;
 
   const handleViewDetails = (repo: Repository) => {
-    const [owner, repoName] = repo.full_name.split('/')
-    detailMutation.mutate({ owner, repo: repoName })
-  }
+    const [owner, repoName] = repo.full_name.split("/");
+    detailMutation.mutate({ owner, repo: repoName });
+  };
 
   const handleClone = (repo: Repository) => {
-    setSelectedRepo(repo)
-    setShowCloneModal(true)
-  }
+    setSelectedRepo(repo);
+    setShowCloneModal(true);
+  };
 
   const handleConfirmClone = () => {
-    if (!selectedRepo) return
-    
+    if (!selectedRepo) return;
+
     cloneMutation.mutate({
-      url: selectedRepo.html_url + '.git',
-      path: clonePath || undefined
-    })
-  }
+      url: selectedRepo.html_url + ".git",
+      path: clonePath || undefined,
+    });
+  };
 
   // 清除所有保存的状态
   const clearAllSavedState = () => {
-    clearPersistedState(GITHUB_STORAGE_KEYS.SEARCH_QUERY)
-    clearPersistedState(GITHUB_STORAGE_KEYS.FILTERS)
-    clearPersistedState(GITHUB_STORAGE_KEYS.SHOW_FILTERS)
-    clearPersistedState(GITHUB_STORAGE_KEYS.SEARCH_RESULTS)
-    
-    setSearchQuery('')
-    setFilters({
-      language: '',
-      sort: '',
-      updatedAfter: ''
-    })
-    setShowFilters(false)
-    setSavedSearchResults(null)
-    
-    toast.success('已清除所有保存的搜索状态')
-  }
+    clearPersistedState(GITHUB_STORAGE_KEYS.SEARCH_QUERY);
+    clearPersistedState(GITHUB_STORAGE_KEYS.FILTERS);
+    clearPersistedState(GITHUB_STORAGE_KEYS.SHOW_FILTERS);
+    clearPersistedState(GITHUB_STORAGE_KEYS.SEARCH_RESULTS);
 
-  const repositories = recommendationMutation.data?.repositories || 
-                      enhancedSearchMutation.data?.repositories || 
-                      searchMutation.data?.repositories || 
-                      savedSearchResults?.repositories || 
-                      trendingData?.repositories || 
-                      []
+    setSearchQuery("");
+    setFilters({
+      language: "",
+      sort: "",
+      updatedAfter: "",
+    });
+    setShowFilters(false);
+    setSavedSearchResults(null);
+
+    toast.success("已清除所有保存的搜索状态");
+  };
+
+  const repositories =
+    recommendationMutation.data?.repositories ||
+    enhancedSearchMutation.data?.repositories ||
+    searchMutation.data?.repositories ||
+    savedSearchResults?.repositories ||
+    trendingData?.repositories ||
+    [];
 
   const formatNumber = (num: number): string => {
     if (num >= 1000) {
-      return (num / 1000).toFixed(1) + 'k'
+      return (num / 1000).toFixed(1) + "k";
     }
-    return num.toString()
-  }
+    return num.toString();
+  };
 
   const formatDate = (dateString: string): string => {
-    return new Date(dateString).toLocaleDateString('zh-CN')
-  }
+    return new Date(dateString).toLocaleDateString("zh-CN");
+  };
 
   // 常用编程语言选项
   const programmingLanguages = [
-    'JavaScript', 'TypeScript', 'Python', 'Java', 'C++', 'C#', 'PHP', 'Ruby',
-    'Go', 'Rust', 'Swift', 'Kotlin', 'Dart', 'Scala', 'HTML', 'CSS', 'Shell',
-    'Vue', 'React', 'Angular', 'Svelte', 'R', 'Lua', 'Perl', 'Haskell'
-  ]
+    "JavaScript",
+    "TypeScript",
+    "Python",
+    "Java",
+    "C++",
+    "C#",
+    "PHP",
+    "Ruby",
+    "Go",
+    "Rust",
+    "Swift",
+    "Kotlin",
+    "Dart",
+    "Scala",
+    "HTML",
+    "CSS",
+    "Shell",
+    "Vue",
+    "React",
+    "Angular",
+    "Svelte",
+    "R",
+    "Lua",
+    "Perl",
+    "Haskell",
+  ];
 
   return (
     <div className="p-6">
@@ -270,7 +305,7 @@ export const GitHubRecommendations: React.FC = () => {
         <div className="flex items-center gap-3">
           <button
             onClick={clearAllSavedState}
-            className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 flex items-center gap-2"
+            className="px-6 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 flex items-center gap-2"
             title="清除所有保存的搜索和筛选状态"
           >
             <TrashIcon className="h-4 w-4" />
@@ -288,8 +323,18 @@ export const GitHubRecommendations: React.FC = () => {
               </>
             ) : (
               <>
-                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                <svg
+                  className="h-5 w-5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M13 10V3L4 14h7v7l9-11h-7z"
+                  />
                 </svg>
                 智能推送
               </>
@@ -313,18 +358,22 @@ export const GitHubRecommendations: React.FC = () => {
           </div>
           <button
             type="submit"
-            disabled={searchMutation.isPending || enhancedSearchMutation.isPending}
+            disabled={
+              searchMutation.isPending || enhancedSearchMutation.isPending
+            }
             className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
           >
-            {searchMutation.isPending || enhancedSearchMutation.isPending ? '搜索中...' : '搜索'}
+            {searchMutation.isPending || enhancedSearchMutation.isPending
+              ? "搜索中..."
+              : "搜索"}
           </button>
           <button
             type="button"
             onClick={() => setShowFilters(!showFilters)}
             className={`px-4 py-3 rounded-lg flex items-center gap-2 ${
-              showFilters || hasActiveFilters 
-                ? 'bg-blue-100 text-blue-700 border border-blue-300' 
-                : 'bg-gray-100 text-gray-700 border border-gray-300'
+              showFilters || hasActiveFilters
+                ? "bg-blue-100 text-blue-700 border border-blue-300"
+                : "bg-gray-100 text-gray-700 border border-gray-300"
             } hover:bg-blue-50`}
           >
             <FunnelIcon className="h-5 w-5" />
@@ -358,12 +407,16 @@ export const GitHubRecommendations: React.FC = () => {
                 </label>
                 <select
                   value={filters.language}
-                  onChange={(e) => handleFilterChange('language', e.target.value)}
+                  onChange={(e) =>
+                    handleFilterChange("language", e.target.value)
+                  }
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                 >
                   <option value="">所有语言</option>
-                  {programmingLanguages.map(lang => (
-                    <option key={lang} value={lang}>{lang}</option>
+                  {programmingLanguages.map((lang) => (
+                    <option key={lang} value={lang}>
+                      {lang}
+                    </option>
                   ))}
                 </select>
               </div>
@@ -375,7 +428,7 @@ export const GitHubRecommendations: React.FC = () => {
                 </label>
                 <select
                   value={filters.sort}
-                  onChange={(e) => handleFilterChange('sort', e.target.value)}
+                  onChange={(e) => handleFilterChange("sort", e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                 >
                   <option value="">默认排序</option>
@@ -394,7 +447,9 @@ export const GitHubRecommendations: React.FC = () => {
                 </label>
                 <select
                   value={filters.updatedAfter}
-                  onChange={(e) => handleFilterChange('updatedAfter', e.target.value)}
+                  onChange={(e) =>
+                    handleFilterChange("updatedAfter", e.target.value)
+                  }
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                 >
                   <option value="">全部时间</option>
@@ -415,10 +470,12 @@ export const GitHubRecommendations: React.FC = () => {
               </button>
               <button
                 onClick={handleEnhancedSearch}
-                disabled={enhancedSearchMutation.isPending || !searchQuery.trim()}
+                disabled={
+                  enhancedSearchMutation.isPending || !searchQuery.trim()
+                }
                 className="px-4 py-2 bg-green-600 text-white text-sm rounded-md hover:bg-green-700 disabled:opacity-50"
               >
-                {enhancedSearchMutation.isPending ? '搜索中...' : '应用筛选'}
+                {enhancedSearchMutation.isPending ? "搜索中..." : "应用筛选"}
               </button>
             </div>
           </div>
@@ -435,12 +492,17 @@ export const GitHubRecommendations: React.FC = () => {
         <div className="text-center py-12">
           <CodeBracketIcon className="h-16 w-16 text-gray-400 mx-auto mb-4" />
           <p className="text-gray-500">暂无项目</p>
-          <p className="text-sm text-gray-400 mt-1">尝试搜索或等待热门项目加载</p>
+          <p className="text-sm text-gray-400 mt-1">
+            尝试搜索或等待热门项目加载
+          </p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {repositories.map((repo: Repository) => (
-            <div key={repo.id} className="bg-white rounded-lg shadow hover:shadow-lg transition-shadow">
+            <div
+              key={repo.id}
+              className="bg-white rounded-lg shadow hover:shadow-lg transition-shadow"
+            >
               <div className="p-6">
                 {/* 项目头信息 */}
                 <div className="flex items-start justify-between mb-4">
@@ -448,7 +510,9 @@ export const GitHubRecommendations: React.FC = () => {
                     <h3 className="text-lg font-semibold text-gray-900 truncate">
                       {repo.name}
                     </h3>
-                    <p className="text-sm text-gray-600 truncate">{repo.owner.login}</p>
+                    <p className="text-sm text-gray-600 truncate">
+                      {repo.owner.login}
+                    </p>
                   </div>
                   <img
                     src={repo.owner.avatar_url}
@@ -519,7 +583,9 @@ export const GitHubRecommendations: React.FC = () => {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-bold text-gray-900">{selectedRepo.full_name}</h2>
+              <h2 className="text-2xl font-bold text-gray-900">
+                {selectedRepo.full_name}
+              </h2>
               <button
                 onClick={() => setShowDetailModal(false)}
                 className="p-2 text-gray-400 hover:text-gray-600"
@@ -530,36 +596,50 @@ export const GitHubRecommendations: React.FC = () => {
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
               <div className="bg-gray-50 rounded-lg p-4">
-                <h3 className="text-sm font-medium text-gray-700 mb-2">项目信息</h3>
+                <h3 className="text-sm font-medium text-gray-700 mb-2">
+                  项目信息
+                </h3>
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
                     <span>Stars:</span>
-                    <span className="font-medium">{formatNumber(selectedRepo.stargazers_count)}</span>
+                    <span className="font-medium">
+                      {formatNumber(selectedRepo.stargazers_count)}
+                    </span>
                   </div>
                   <div className="flex justify-between">
                     <span>Forks:</span>
-                    <span className="font-medium">{formatNumber(selectedRepo.forks_count)}</span>
+                    <span className="font-medium">
+                      {formatNumber(selectedRepo.forks_count)}
+                    </span>
                   </div>
                   <div className="flex justify-between">
                     <span>Watchers:</span>
-                    <span className="font-medium">{formatNumber(selectedRepo.watchers_count)}</span>
+                    <span className="font-medium">
+                      {formatNumber(selectedRepo.watchers_count)}
+                    </span>
                   </div>
                   <div className="flex justify-between">
                     <span>语言:</span>
-                    <span className="font-medium">{selectedRepo.language || '未知'}</span>
+                    <span className="font-medium">
+                      {selectedRepo.language || "未知"}
+                    </span>
                   </div>
                 </div>
               </div>
 
               <div className="md:col-span-2">
                 <h3 className="text-sm font-medium text-gray-700 mb-2">描述</h3>
-                <p className="text-gray-600">{selectedRepo.description || '无描述'}</p>
+                <p className="text-gray-600">
+                  {selectedRepo.description || "无描述"}
+                </p>
               </div>
             </div>
 
             {selectedRepo.readme && (
               <div>
-                <h3 className="text-sm font-medium text-gray-700 mb-2">README</h3>
+                <h3 className="text-sm font-medium text-gray-700 mb-2">
+                  README
+                </h3>
                 <div className="bg-gray-50 rounded-lg p-4">
                   <pre className="text-sm text-gray-800 whitespace-pre-wrap">
                     {selectedRepo.readme}
@@ -599,7 +679,7 @@ export const GitHubRecommendations: React.FC = () => {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-md">
             <h2 className="text-xl font-semibold mb-4">克隆项目</h2>
-            
+
             <div className="mb-4">
               <p className="text-sm text-gray-600 mb-2">项目URL:</p>
               <p className="text-sm font-mono bg-gray-100 p-2 rounded">
@@ -619,14 +699,14 @@ export const GitHubRecommendations: React.FC = () => {
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
-            
+
             <div className="flex space-x-3">
               <button
                 onClick={handleConfirmClone}
                 disabled={cloneMutation.isPending}
                 className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
               >
-                {cloneMutation.isPending ? '克隆中...' : '克隆'}
+                {cloneMutation.isPending ? "克隆中..." : "克隆"}
               </button>
               <button
                 onClick={() => setShowCloneModal(false)}
@@ -639,5 +719,5 @@ export const GitHubRecommendations: React.FC = () => {
         </div>
       )}
     </div>
-  )
-}
+  );
+};
