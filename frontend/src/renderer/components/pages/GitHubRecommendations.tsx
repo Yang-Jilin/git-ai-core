@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { toast } from 'react-hot-toast'
 import { Link } from 'react-router-dom'
@@ -8,9 +8,18 @@ import {
   CalendarIcon,
   MagnifyingGlassIcon,
   FunnelIcon,
-  XMarkIcon
+  XMarkIcon,
+  TrashIcon
 } from '@heroicons/react/24/outline'
 import { api } from '../../services/api'
+import { 
+  usePersistedState, 
+  clearPersistedState, 
+  GITHUB_STORAGE_KEYS,
+  saveSearchResults,
+  getSearchResults,
+  SearchResultData
+} from '../../hooks/usePersistedState'
 
 interface Repository {
   id: number
@@ -31,17 +40,27 @@ interface Repository {
 }
 
 export const GitHubRecommendations: React.FC = () => {
-  const [searchQuery, setSearchQuery] = useState('')
+  const [searchQuery, setSearchQuery] = usePersistedState(GITHUB_STORAGE_KEYS.SEARCH_QUERY, '')
   const [selectedRepo, setSelectedRepo] = useState<Repository | null>(null)
   const [showDetailModal, setShowDetailModal] = useState(false)
   const [showCloneModal, setShowCloneModal] = useState(false)
   const [clonePath, setClonePath] = useState('')
-  const [showFilters, setShowFilters] = useState(false)
-  const [filters, setFilters] = useState({
+  const [showFilters, setShowFilters] = usePersistedState(GITHUB_STORAGE_KEYS.SHOW_FILTERS, false)
+  const [filters, setFilters] = usePersistedState(GITHUB_STORAGE_KEYS.FILTERS, {
     language: '',
     sort: '', // 排序方式：''（默认）, 'stars-asc', 'stars-desc'
     updatedAfter: ''
   })
+  const [savedSearchResults, setSavedSearchResults] = useState<SearchResultData | null>(null)
+
+  // 组件挂载时检查保存的搜索结果
+  useEffect(() => {
+    const savedResults = getSearchResults(GITHUB_STORAGE_KEYS.SEARCH_RESULTS)
+    if (savedResults) {
+      setSavedSearchResults(savedResults)
+      toast.success('已恢复之前的搜索结果')
+    }
+  }, [])
 
   // 获取热门项目
   const { data: trendingData, isLoading: isLoadingTrending } = useQuery({
@@ -55,6 +74,13 @@ export const GitHubRecommendations: React.FC = () => {
     mutationFn: (query: string) => api.searchGitHubRepos(query),
     onSuccess: (data) => {
       toast.success(`找到 ${data.repositories.length} 个项目`)
+      // 保存搜索结果
+      saveSearchResults(GITHUB_STORAGE_KEYS.SEARCH_RESULTS, {
+        repositories: data.repositories,
+        searchType: 'basic',
+        timestamp: Date.now(),
+        query: searchQuery
+      })
     },
     onError: (error: any) => {
       toast.error(error.response?.data?.detail || '搜索失败')
@@ -75,6 +101,14 @@ export const GitHubRecommendations: React.FC = () => {
       data.repositories.forEach((repo: Repository) => {
         api.recordGitHubAction(repo.full_name, 'search', searchQuery)
       })
+      // 保存搜索结果
+      saveSearchResults(GITHUB_STORAGE_KEYS.SEARCH_RESULTS, {
+        repositories: data.repositories,
+        searchType: 'enhanced',
+        timestamp: Date.now(),
+        query: searchQuery,
+        filters: filters
+      })
     },
     onError: (error: any) => {
       toast.error(error.response?.data?.detail || '搜索失败')
@@ -86,6 +120,12 @@ export const GitHubRecommendations: React.FC = () => {
     mutationFn: () => api.getGitHubRecommendations("default", 10),
     onSuccess: (data) => {
       toast.success(`为您推荐了 ${data.repositories.length} 个项目`)
+      // 保存推荐结果
+      saveSearchResults(GITHUB_STORAGE_KEYS.SEARCH_RESULTS, {
+        repositories: data.repositories,
+        searchType: 'recommendation',
+        timestamp: Date.now()
+      })
     },
     onError: (error: any) => {
       toast.error(error.response?.data?.detail || '推荐失败')
@@ -176,7 +216,31 @@ export const GitHubRecommendations: React.FC = () => {
     })
   }
 
-  const repositories = recommendationMutation.data?.repositories || enhancedSearchMutation.data?.repositories || searchMutation.data?.repositories || trendingData?.repositories || []
+  // 清除所有保存的状态
+  const clearAllSavedState = () => {
+    clearPersistedState(GITHUB_STORAGE_KEYS.SEARCH_QUERY)
+    clearPersistedState(GITHUB_STORAGE_KEYS.FILTERS)
+    clearPersistedState(GITHUB_STORAGE_KEYS.SHOW_FILTERS)
+    clearPersistedState(GITHUB_STORAGE_KEYS.SEARCH_RESULTS)
+    
+    setSearchQuery('')
+    setFilters({
+      language: '',
+      sort: '',
+      updatedAfter: ''
+    })
+    setShowFilters(false)
+    setSavedSearchResults(null)
+    
+    toast.success('已清除所有保存的搜索状态')
+  }
+
+  const repositories = recommendationMutation.data?.repositories || 
+                      enhancedSearchMutation.data?.repositories || 
+                      searchMutation.data?.repositories || 
+                      savedSearchResults?.repositories || 
+                      trendingData?.repositories || 
+                      []
 
   const formatNumber = (num: number): string => {
     if (num >= 1000) {
@@ -203,25 +267,35 @@ export const GitHubRecommendations: React.FC = () => {
           <h1 className="text-3xl font-bold text-gray-900">GitHub项目推荐</h1>
           <p className="mt-2 text-gray-600">发现热门的GitHub项目</p>
         </div>
-        <button
-          onClick={() => recommendationMutation.mutate()}
-          disabled={recommendationMutation.isPending}
-          className="px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 flex items-center gap-2"
-        >
-          {recommendationMutation.isPending ? (
-            <>
-              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-              推送中...
-            </>
-          ) : (
-            <>
-              <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-              </svg>
-              智能推送
-            </>
-          )}
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={clearAllSavedState}
+            className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 flex items-center gap-2"
+            title="清除所有保存的搜索和筛选状态"
+          >
+            <TrashIcon className="h-4 w-4" />
+            清除状态
+          </button>
+          <button
+            onClick={() => recommendationMutation.mutate()}
+            disabled={recommendationMutation.isPending}
+            className="px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 flex items-center gap-2"
+          >
+            {recommendationMutation.isPending ? (
+              <>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                推送中...
+              </>
+            ) : (
+              <>
+                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+                智能推送
+              </>
+            )}
+          </button>
+        </div>
       </div>
 
       {/* 搜索框 */}
