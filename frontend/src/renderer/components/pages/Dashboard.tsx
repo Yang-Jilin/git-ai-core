@@ -10,6 +10,7 @@ import {
 import { Link } from "react-router-dom";
 import { toast } from "react-hot-toast";
 import { api } from "../../services/api";
+import { formatNumber } from "../../utils/formatNumber";
 
 interface Project {
   name: string;
@@ -247,11 +248,11 @@ export const Dashboard: React.FC = () => {
                     <div className="flex items-center mt-2 text-xs text-gray-500">
                       <div className="flex items-center mr-4">
                         <StarIcon className="h-3 w-3 mr-1" />
-                        <span>{repo.stargazers_count}</span>
+                        <span>{formatNumber(repo.stargazers_count)}</span>
                       </div>
                       <div className="flex items-center mr-4">
                         <CodeBracketIcon className="h-3 w-3 mr-1" />
-                        <span>{repo.forks_count}</span>
+                        <span>{formatNumber(repo.forks_count)}</span>
                       </div>
                       {repo.language && (
                         <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">

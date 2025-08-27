@@ -20,6 +20,7 @@ import {
   getSearchResults,
   SearchResultData,
 } from "../../hooks/usePersistedState";
+import { formatNumber } from "../../utils/formatNumber";
 
 interface Repository {
   id: number;
@@ -254,13 +255,6 @@ export const GitHubRecommendations: React.FC = () => {
     savedSearchResults?.repositories ||
     trendingData?.repositories ||
     [];
-
-  const formatNumber = (num: number): string => {
-    if (num >= 1000) {
-      return (num / 1000).toFixed(1) + "k";
-    }
-    return num.toString();
-  };
 
   const formatDate = (dateString: string): string => {
     return new Date(dateString).toLocaleDateString("zh-CN");
