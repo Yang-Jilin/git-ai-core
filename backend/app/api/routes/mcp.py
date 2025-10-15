@@ -15,49 +15,18 @@ class MCPServerConfig(BaseModel):
     args: Optional[List[str]] = Field(None, description="Command arguments")
     env: Optional[Dict[str, str]] = Field(None, description="Environment variables")
     description: Optional[str] = Field(None, description="Server description")
+    enabled: Optional[bool] = Field(True, description="Whether the server is enabled")
+    transportType: Optional[str] = Field("stdio", description="Transport type (stdio/http)")
+    url: Optional[str] = Field("", description="URL for HTTP transport")
+    headers: Optional[Dict[str, str]] = Field({}, description="Headers for HTTP transport")
+
+class MCPServerTestRequest(BaseModel):
+    config: MCPServerConfig = Field(..., description="Server configuration to test")
 
 class MCPRequest(BaseModel):
     server_name: str = Field(..., description="MCP server name")
     tool_name: str = Field(..., description="Tool name")
     arguments: Dict[str, Any] = Field(..., description="Tool arguments")
-
-class McpServer:
-    def __init__(self):
-        self.servers = {}
-        self.config_path = None
-    
-    def set_config_path(self, config_path: str):
-        self.config_path = config_path
-    
-    def load_servers(self) -> Dict[str, Any]:
-        """加载MCP服务器配置"""
-        if not self.config_path or not os.path.exists(self.config_path):
-            return {}
-        
-        try:
-            with open(self.config_path, 'r') as f:
-                return json.load(f)
-        except Exception:
-            return {}
-    
-    def save_servers(self, servers: Dict[str, Any]) -> bool:
-        """保存MCP服务器配置"""
-        try:
-            os.makedirs(os.path.dirname(self.config_path), exist_ok=True)
-            with open(self.config_path, 'w') as f:
-                json.dump(servers, f, indent=2)
-            return True
-        except Exception:
-            return False
-    
-    def get_server(self, name: str) -> Optional[Dict[str, Any]]:
-        """获取服务器配置"""
-        servers = self.load_servers()
-        return servers.get(name)
-    
-    def list_servers(self) -> Dict[str, Any]:
-        """列出所有服务器"""
-        return self.load_servers()
 
 def get_mcp_server():
     from app.main import app
@@ -80,6 +49,10 @@ async def list_servers() -> Dict[str, Any]:
             "args": server.get("args", []),
             "env": server.get("env", {}),
             "description": server.get("description", ""),
+            "enabled": server.get("enabled", True),
+            "transportType": server.get("transportType", "stdio"),
+            "url": server.get("url", ""),
+            "headers": server.get("headers", {}),
             "builtin": True  # 标记为内置服务器
         }
     
@@ -100,16 +73,19 @@ async def get_server(server_name: str) -> Dict[str, Any]:
 async def add_server(config: MCPServerConfig) -> Dict[str, Any]:
     """添加MCP服务器"""
     mcp_server = get_mcp_server()
-    servers = mcp_server.load_servers()
     
-    servers[config.name] = {
+    server_config = {
         "command": config.command,
         "args": config.args or [],
         "env": config.env or {},
-        "description": config.description or ""
+        "description": config.description or "",
+        "enabled": config.enabled or True,
+        "transportType": config.transportType or "stdio",
+        "url": config.url or "",
+        "headers": config.headers or {}
     }
     
-    if mcp_server.save_servers(servers):
+    if mcp_server.add_server(config.name, server_config):
         return {"success": True, "message": "Server added successfully"}
     else:
         raise HTTPException(status_code=500, detail="Failed to save server configuration")
@@ -118,19 +94,19 @@ async def add_server(config: MCPServerConfig) -> Dict[str, Any]:
 async def update_server(server_name: str, config: MCPServerConfig) -> Dict[str, Any]:
     """更新MCP服务器"""
     mcp_server = get_mcp_server()
-    servers = mcp_server.load_servers()
     
-    if server_name not in servers:
-        raise HTTPException(status_code=404, detail="Server not found")
-    
-    servers[server_name] = {
+    server_config = {
         "command": config.command,
         "args": config.args or [],
         "env": config.env or {},
-        "description": config.description or ""
+        "description": config.description or "",
+        "enabled": config.enabled or True,
+        "transportType": config.transportType or "stdio",
+        "url": config.url or "",
+        "headers": config.headers or {}
     }
     
-    if mcp_server.save_servers(servers):
+    if mcp_server.update_server(server_name, server_config):
         return {"success": True, "message": "Server updated successfully"}
     else:
         raise HTTPException(status_code=500, detail="Failed to save server configuration")
@@ -139,17 +115,32 @@ async def update_server(server_name: str, config: MCPServerConfig) -> Dict[str, 
 async def remove_server(server_name: str) -> Dict[str, Any]:
     """删除MCP服务器"""
     mcp_server = get_mcp_server()
-    servers = mcp_server.load_servers()
     
-    if server_name not in servers:
-        raise HTTPException(status_code=404, detail="Server not found")
-    
-    del servers[server_name]
-    
-    if mcp_server.save_servers(servers):
+    if mcp_server.remove_server(server_name):
         return {"success": True, "message": "Server removed successfully"}
     else:
-        raise HTTPException(status_code=500, detail="Failed to save server configuration")
+        raise HTTPException(status_code=500, detail="Failed to remove server configuration")
+
+@router.post("/servers/test")
+async def test_server(request: MCPServerTestRequest) -> Dict[str, Any]:
+    """测试MCP服务器连接"""
+    mcp_server = get_mcp_server()
+    
+    # 将配置转换为字典格式
+    config_dict = {
+        "command": request.config.command,
+        "args": request.config.args or [],
+        "env": request.config.env or {},
+        "description": request.config.description or "",
+        "enabled": request.config.enabled or True,
+        "transportType": request.config.transportType or "stdio",
+        "url": request.config.url or "",
+        "headers": request.config.headers or {}
+    }
+    
+    # 测试服务器连接
+    result = await mcp_server.test_server_connection(config_dict)
+    return result
 
 @router.post("/execute")
 async def execute_tool(request: MCPRequest) -> Dict[str, Any]:

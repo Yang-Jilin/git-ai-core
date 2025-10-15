@@ -12,6 +12,7 @@ from app.core.git_manager import GitManager
 from app.core.ai_manager import AIManager
 from app.core.mcp_server import McpServer
 from app.core.database import init_db
+from app.core.ai_config_manager import ai_config_manager
 
 logger = logging.getLogger(__name__)
 
@@ -60,6 +61,9 @@ app.include_router(mcp.router, prefix="/api/mcp", tags=["mcp"])
 app.include_router(projects.router, prefix="/api/projects", tags=["projects"])
 app.include_router(config.router, prefix="/api", tags=["config"])
 app.include_router(github.router, prefix="/api", tags=["github"])
+
+# 挂载静态文件目录 - 支持项目文档和图片访问
+app.mount("/static", StaticFiles(directory="."), name="static")
 
 # WebSocket endpoint for real-time communication
 class ConnectionManager:

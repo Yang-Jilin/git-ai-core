@@ -109,8 +109,18 @@ export const api = {
     return response.data
   },
 
+  async updateMCPServer(name: string, config: any) {
+    const response = await apiClient.put(`/api/mcp/servers/${name}`, config)
+    return response.data
+  },
+
   async removeMCPServer(name: string) {
     const response = await apiClient.delete(`/api/mcp/servers/${name}`)
+    return response.data
+  },
+
+  async testMCPServer(config: any) {
+    const response = await apiClient.post('/api/mcp/servers/test', { config })
     return response.data
   },
 
@@ -151,6 +161,14 @@ export const api = {
       api_key: apiKey
     })
     return response.data
+  },
+
+  // 项目演化时间线分析
+  async generateEvolutionTimeline(projectPath: string, analysisDepth: string = "medium") {
+    const response = await apiClient.post(`/api/projects/${encodeURIComponent(projectPath)}/analyze/evolution-timeline`, {
+      analysis_depth: analysisDepth
+    });
+    return response.data;
   },
 
   // 配置管理
